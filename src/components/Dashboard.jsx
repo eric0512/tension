@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sun, CloudSun, Moon, ChevronLeft, ChevronRight, Calendar, Heart, Plus, Edit2, Info, Activity } from 'lucide-react';
+import { Sun, CloudSun, Moon, ChevronLeft, ChevronRight, Calendar, Heart, Plus, Edit2, Info } from 'lucide-react';
 import { getBPStatus, getTodayDateStr } from '../hooks/useTensionData';
 
 export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
@@ -8,11 +8,15 @@ export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
   // Obtenir les données du jour sélectionné
   const dayData = data[selectedDate] || {
     date: selectedDate,
-    slots: { matin: null, midi: null, soir: null },
+    slots: { 
+      matin_gauche: null, matin_droit: null,
+      midi_gauche: null, midi_droit: null,
+      soir_gauche: null, soir_droit: null
+    },
     avg: null,
   };
 
-  // Nombre de mesures terminées aujourd'hui (sur 3)
+  // Nombre de mesures terminées aujourd'hui (sur 6 possibles)
   const completedSlots = Object.values(dayData.slots).filter(Boolean).length;
   
   // Navigation de date
@@ -41,17 +45,17 @@ export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
     });
   };
 
-  const slotsMeta = {
-    matin: { label: 'Matin', icon: <Sun size={20} style={{ color: '#eab308' }} />, desc: 'Au réveil, avant le petit-déjeuner' },
-    midi: { label: 'Midi', icon: <CloudSun size={20} style={{ color: '#3b82f6' }} />, desc: 'Avant le déjeuner' },
-    soir: { label: 'Soir', icon: <Moon size={20} style={{ color: '#6366f1' }} />, desc: 'Avant le coucher' }
-  };
+  const momentsConfig = [
+    { key: 'matin', label: '☀️ Matin', desc: 'Au réveil, avant le petit-déjeuner' },
+    { key: 'midi', label: '🌤️ Midi', desc: 'Avant le déjeuner' },
+    { key: 'soir', label: '🌙 Soir', desc: 'Avant le coucher' }
+  ];
 
   // Calcul du cercle de progression
   const radius = 60;
   const strokeWidth = 10;
   const circumference = 2 * Math.PI * radius;
-  const progressPercent = (completedSlots / 3) * 100;
+  const progressPercent = (completedSlots / 6) * 100;
   const strokeDashoffset = circumference - (progressPercent / 100) * circumference;
 
   // Récupérer le statut médical pour la moyenne globale
@@ -112,6 +116,84 @@ export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
             Aucune mesure prise sur le {defaultLabel}.
           </div>
         )}
+      </div>
+    );
+  };
+
+  // Rendu d'une sous-mesure (bras gauche ou droit) pour un moment donné
+  const renderSubSlotRow = (momentKey, armKey, label, icon, dotColor) => {
+    const slotKey = `${momentKey}_${armKey}`;
+    const slotData = dayData.slots[slotKey];
+
+    return (
+      <div 
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '0.85rem 1.25rem',
+          background: 'rgba(255, 255, 255, 0.01)',
+          border: '1px solid rgba(255, 255, 255, 0.04)',
+          borderRadius: 'var(--radius-md)',
+          cursor: 'pointer',
+          transition: 'var(--transition)'
+        }}
+        className="slot-card"
+        onClick={() => onAddClick(selectedDate, slotKey, slotData)}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <span style={{ fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            {icon}
+            <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>{label}</span>
+          </span>
+          {slotData && (
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              ({slotData.time})
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          {slotData ? (
+            <>
+              <div style={{ textAlign: 'right' }}>
+                <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>
+                  {slotData.sys}/{slotData.dia} <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)' }}>mmHg</span>
+                </span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginLeft: '0.75rem' }}>
+                  💓 {slotData.pulse} <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>bpm</span>
+                </span>
+              </div>
+              {slotData.note && (
+                <div 
+                  title={slotData.note} 
+                  style={{ 
+                    width: '6px', 
+                    height: '6px', 
+                    borderRadius: '50%', 
+                    backgroundColor: 'var(--accent)',
+                    boxShadow: '0 0 8px var(--accent)'
+                  }} 
+                  title={`Note : ${slotData.note}`}
+                />
+              )}
+              <button className="btn-icon edit" style={{ padding: '0.2rem' }} aria-label="Modifier">
+                <Edit2 size={14} />
+              </button>
+            </>
+          ) : (
+            <button 
+              className="btn-add-inline"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddClick(selectedDate, slotKey, null);
+              }}
+            >
+              <Plus size={12} style={{ marginRight: '3px', verticalAlign: 'middle' }} />
+              Saisir
+            </button>
+          )}
+        </div>
       </div>
     );
   };
@@ -180,66 +262,32 @@ export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
         </div>
 
         {/* Créneaux du Jour */}
-        <div className="glass-card">
-          <div className="card-title">
-            <Activity size={20} style={{ color: 'var(--primary)' }} />
-            Mesures de la Journée
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', paddingLeft: '0.5rem' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Heart size={20} style={{ color: 'var(--primary)' }} />
+              Mesures de la Journée
+            </h3>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+              {completedSlots}/6 Mesures
+            </span>
           </div>
 
           <div className="slots-container">
-            {Object.entries(slotsMeta).map(([key, meta]) => {
-              const slotData = dayData.slots[key];
-
-              return (
-                <div 
-                  key={key} 
-                  className="slot-card"
-                  onClick={() => onAddClick(selectedDate, key, slotData)}
-                >
-                  <div className="slot-info">
-                    <div className="slot-icon-wrapper">
-                      {meta.icon}
-                    </div>
-                    <div>
-                      <div className="slot-name">{meta.label}</div>
-                      <div className="slot-time">{slotData ? `Prise à ${slotData.time}` : meta.desc}</div>
-                    </div>
-                  </div>
-
-                  <div className="slot-data">
-                    {slotData ? (
-                      <>
-                        <div className="slot-numbers">
-                          <div className="slot-bp">
-                            {slotData.sys}/{slotData.dia} <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>mmHg</span>
-                          </div>
-                          <div className="slot-pulse">
-                            💓 {slotData.pulse} bpm • {slotData.arm === 'droit' ? 'Bras droit 👉' : '👈 Bras gauche'}
-                          </div>
-                        </div>
-                        <button className="btn-icon edit" aria-label="Modifier">
-                          <Edit2 size={16} />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <span className="slot-empty">Pas de mesure</span>
-                        <button 
-                          className="btn-add-inline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAddClick(selectedDate, key, null);
-                          }}
-                        >
-                          <Plus size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                          Ajouter
-                        </button>
-                      </>
-                    )}
+            {momentsConfig.map((moment) => (
+              <div key={moment.key} className="glass-card" style={{ padding: '1.25rem 1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 700 }}>{moment.label}</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>— {moment.desc}</span>
                   </div>
                 </div>
-              );
-            })}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  {renderSubSlotRow(moment.key, 'gauche', 'Bras Gauche', '👈', 'var(--primary)')}
+                  {renderSubSlotRow(moment.key, 'droit', 'Bras Droit', '👉', 'var(--accent)')}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -280,23 +328,23 @@ export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
                 />
               </svg>
               <div className="progress-ring-text">
-                <div className="progress-ring-number">{completedSlots}/3</div>
+                <div className="progress-ring-number">{completedSlots}/6</div>
                 <div className="progress-ring-label">Mesures</div>
               </div>
             </div>
 
             <h3 style={{ fontSize: '1.15rem', fontWeight: 600, marginBottom: '0.5rem' }}>
               {completedSlots === 0 && "Journée non commencée"}
-              {completedSlots === 1 && "Une mesure enregistrée"}
-              {completedSlots === 2 && "Presque complet !"}
-              {completedSlots === 3 && "Objectif atteint !"}
+              {completedSlots > 0 && completedSlots < 3 && "Début du suivi"}
+              {completedSlots >= 3 && completedSlots < 6 && "Suivi bien avancé"}
+              {completedSlots === 6 && "Suivi complet !"}
             </h3>
 
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: '220px', lineHeight: '1.4' }}>
-              {completedSlots === 0 && "Mesurez votre tension 3 fois aujourd'hui (matin, midi et soir) pour un suivi optimal."}
-              {completedSlots === 1 && "Excellent début. Pensez à mesurer votre tension aux autres créneaux de la journée."}
-              {completedSlots === 2 && "Plus qu'une mesure aujourd'hui pour obtenir une moyenne journalière complète."}
-              {completedSlots === 3 && "Superbe ! Toutes les mesures sont enregistrées. Votre moyenne journalière est calculée."}
+              {completedSlots === 0 && "Mesurez votre tension sur les deux bras 3 fois par jour pour un suivi médical complet."}
+              {completedSlots > 0 && completedSlots < 3 && "Excellent début. Pensez à relever les mesures pour les autres créneaux de la journée."}
+              {completedSlots >= 3 && completedSlots < 6 && "Vos données sont de plus en plus représentatives. Continuez la saisie !"}
+              {completedSlots === 6 && "Parfait ! Vous avez réalisé l'ensemble des mesures (bras gauche et bras droit) pour toute la journée."}
             </p>
 
             {/* Diagnostic médical de la moyenne */}

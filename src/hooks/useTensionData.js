@@ -73,9 +73,9 @@ export const useTensionData = () => {
   //   '2026-06-25': {
   //     date: '2026-06-25',
   //     slots: {
-  //       matin: { sys: 120, dia: 80, pulse: 70, arm: 'gauche', time: '08:30', note: '' } | null,
-  //       midi: null,
-  //       soir: null
+  //       matin_gauche: { sys: 120, dia: 80, pulse: 70, arm: 'gauche', time: '08:30', note: '' } | null,
+  //       matin_droit: null,
+  //       ...
   //     },
   //     avg: {
   //       gauche: { sys: 120, dia: 80, pulse: 70 },
@@ -90,22 +90,39 @@ export const useTensionData = () => {
       if (!stored) return {};
       
       const parsed = JSON.parse(stored);
-      // Migration des anciennes données au nouveau format de moyennes si nécessaire
+      // Migration des anciennes données vers le format à 6 slots
       Object.keys(parsed).forEach((dateStr) => {
         const day = parsed[dateStr];
-        if (day.avg && (!day.avg.global && !day.avg.gauche)) {
-          // C'est un ancien format de moyenne combinée
-          const oldAvg = day.avg;
-          
-          // Mettre à jour les créneaux avec 'gauche' par défaut si absent
-          const slotsKeys = ['matin', 'midi', 'soir'];
-          slotsKeys.forEach(k => {
-            if (day.slots[k] && !day.slots[k].arm) {
-              day.slots[k].arm = 'gauche';
+        if (day.slots) {
+          const newSlots = {
+            matin_gauche: null, matin_droit: null,
+            midi_gauche: null, midi_droit: null,
+            soir_gauche: null, soir_droit: null
+          };
+
+          const oldKeys = ['matin', 'midi', 'soir'];
+          oldKeys.forEach(k => {
+            if (day.slots[k] !== undefined) {
+              const oldSlot = day.slots[k];
+              if (oldSlot) {
+                // Associer au bon bras selon sa propriété
+                const arm = oldSlot.arm || 'gauche';
+                newSlots[`${k}_${arm}`] = oldSlot;
+              }
+              // Supprimer l'ancienne clé
+              delete day.slots[k];
             }
           });
 
-          // Recalculer les moyennes avec le nouveau système
+          // Réassigner les slots déjà existants s'ils étaient déjà migrés au nouveau format
+          const newKeys = ['matin_gauche', 'matin_droit', 'midi_gauche', 'midi_droit', 'soir_gauche', 'soir_droit'];
+          newKeys.forEach(nk => {
+            if (day.slots[nk] !== undefined) {
+              newSlots[nk] = day.slots[nk];
+            }
+          });
+
+          day.slots = newSlots;
           day.avg = calculateDailyAverage(day.slots);
         }
       });
@@ -128,12 +145,17 @@ export const useTensionData = () => {
     let diaSum = 0;
     let pulseSum = 0;
 
-    Object.values(slots).forEach((slot) => {
-      if (slot && (arm === null || slot.arm === arm)) {
-        count++;
-        sysSum += parseFloat(slot.sys);
-        diaSum += parseFloat(slot.dia);
-        pulseSum += parseFloat(slot.pulse);
+    Object.entries(slots).forEach(([slotKey, slot]) => {
+      if (slot) {
+        const isRightSlot = slotKey.endsWith('_droit');
+        const isLeftSlot = slotKey.endsWith('_gauche');
+        
+        if (arm === null || (arm === 'droit' && isRightSlot) || (arm === 'gauche' && isLeftSlot)) {
+          count++;
+          sysSum += parseFloat(slot.sys);
+          diaSum += parseFloat(slot.dia);
+          pulseSum += parseFloat(slot.pulse);
+        }
       }
     });
 
@@ -160,7 +182,11 @@ export const useTensionData = () => {
     setData((prev) => {
       const dayData = prev[dateStr] || {
         date: dateStr,
-        slots: { matin: null, midi: null, soir: null },
+        slots: { 
+          matin_gauche: null, matin_droit: null,
+          midi_gauche: null, midi_droit: null,
+          soir_gauche: null, soir_droit: null
+        },
       };
 
       const updatedSlots = {
@@ -170,7 +196,7 @@ export const useTensionData = () => {
               sys: parseInt(measurement.sys, 10),
               dia: parseInt(measurement.dia, 10),
               pulse: parseInt(measurement.pulse, 10),
-              arm: measurement.arm || 'gauche', // 'gauche' ou 'droit'
+              arm: measurement.arm || (slotKey.endsWith('_droit') ? 'droit' : 'gauche'),
               time: measurement.time || getCurrentTimeStr(),
               note: measurement.note || '',
             }
@@ -180,7 +206,9 @@ export const useTensionData = () => {
       const updatedAvg = calculateDailyAverage(updatedSlots);
 
       const nextData = { ...prev };
-      if (!updatedSlots.matin && !updatedSlots.midi && !updatedSlots.soir) {
+      const hasAnyReading = Object.values(updatedSlots).some(Boolean);
+      
+      if (!hasAnyReading) {
         delete nextData[dateStr];
       } else {
         nextData[dateStr] = {
@@ -214,23 +242,25 @@ export const useTensionData = () => {
 
     sortedDates.forEach((dateStr) => {
       const day = data[dateStr];
-      const slotsKeys = ['matin', 'midi', 'soir'];
+      const slotsKeys = ['matin_gauche', 'matin_droit', 'midi_gauche', 'midi_droit', 'soir_gauche', 'soir_droit'];
       
       slotsKeys.forEach((slotKey) => {
         const slot = day.slots[slotKey];
         if (slot) {
+          // Extraire le créneau sans le suffixe du bras pour le CSV
+          const slotLabel = slotKey.split('_')[0].toUpperCase();
           rows.push([
             dateStr,
-            slotKey.toUpperCase(),
+            slotLabel,
             slot.sys,
             slot.dia,
             slot.pulse,
-            slot.arm || 'GAUCHE',
+            slot.arm.toUpperCase(),
             slot.time,
             `"${slot.note.replace(/"/g, '""')}"`,
-            day.avg?.global?.sys || day.avg?.sys || '',
-            day.avg?.global?.dia || day.avg?.dia || '',
-            day.avg?.global?.pulse || day.avg?.pulse || ''
+            day.avg?.global?.sys || '',
+            day.avg?.global?.dia || '',
+            day.avg?.global?.pulse || ''
           ]);
         }
       });
@@ -252,16 +282,35 @@ export const useTensionData = () => {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return;
         if (!dayData || typeof dayData !== 'object') return;
 
-        const slots = { matin: null, midi: null, soir: null };
+        const slots = { 
+          matin_gauche: null, matin_droit: null,
+          midi_gauche: null, midi_droit: null,
+          soir_gauche: null, soir_droit: null
+        };
+        
         if (dayData.slots && typeof dayData.slots === 'object') {
-          ['matin', 'midi', 'soir'].forEach((key) => {
+          // Gérer à la fois l'import de l'ancien format (3 slots) et du nouveau (6 slots)
+          const keysToImport = [
+            'matin', 'midi', 'soir', 
+            'matin_gauche', 'matin_droit', 'midi_gauche', 'midi_droit', 'soir_gauche', 'soir_droit'
+          ];
+          
+          keysToImport.forEach((key) => {
             const s = dayData.slots[key];
             if (s && typeof s === 'object' && s.sys && s.dia && s.pulse) {
-              slots[key] = {
+              const arm = s.arm === 'droit' ? 'droit' : 'gauche';
+              
+              // Déterminer la clé cible dans la structure à 6 slots
+              let targetKey = key;
+              if (key === 'matin' || key === 'midi' || key === 'soir') {
+                targetKey = `${key}_${arm}`;
+              }
+              
+              slots[targetKey] = {
                 sys: parseInt(s.sys, 10),
                 dia: parseInt(s.dia, 10),
                 pulse: parseInt(s.pulse, 10),
-                arm: s.arm === 'droit' ? 'droit' : 'gauche',
+                arm,
                 time: s.time || '12:00',
                 note: s.note || '',
               };
@@ -271,7 +320,8 @@ export const useTensionData = () => {
 
         const avg = calculateDailyAverage(slots);
 
-        if (slots.matin || slots.midi || slots.soir) {
+        const hasAnySlot = Object.values(slots).some(Boolean);
+        if (hasAnySlot) {
           validatedData[dateStr] = {
             date: dateStr,
             slots,
