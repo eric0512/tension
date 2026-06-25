@@ -181,6 +181,7 @@ export default function App() {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveFromModal}
         initialData={modalConfig}
+        data={data}
       />
 
       {/* Notifications Toast */}

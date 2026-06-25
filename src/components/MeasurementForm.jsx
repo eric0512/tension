@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Clipboard } from 'lucide-react';
 import { getBPStatus, getCurrentTimeStr, getTodayDateStr } from '../hooks/useTensionData';
 
-export default function MeasurementForm({ isOpen, onClose, onSave, initialData }) {
+export default function MeasurementForm({ isOpen, onClose, onSave, initialData, data }) {
   const [date, setDate] = useState(getTodayDateStr());
   const [slot, setSlot] = useState('matin');
   const [time, setTime] = useState(getCurrentTimeStr());
@@ -19,40 +19,45 @@ export default function MeasurementForm({ isOpen, onClose, onSave, initialData }
 
   const [error, setError] = useState('');
 
-  // Remplir avec les données initiales si on est en mode édition
+  // 1. Initialiser la date et le créneau à l'ouverture
   useEffect(() => {
     if (isOpen) {
       if (initialData) {
         setDate(initialData.date || getTodayDateStr());
         setSlot(initialData.slot || 'matin');
+        // On ne force le time que si on vient d'ouvrir (sera écrasé si des données existent pour ce créneau)
         setTime(initialData.time || getCurrentTimeStr());
-
-        // Hydrater le bras gauche
-        setSysLeft(initialData.leftData?.sys || '');
-        setDiaLeft(initialData.leftData?.dia || '');
-        setPulseLeft(initialData.leftData?.pulse || '');
-
-        // Hydrater le bras droit
-        setSysRight(initialData.rightData?.sys || '');
-        setDiaRight(initialData.rightData?.dia || '');
-        setPulseRight(initialData.rightData?.pulse || '');
       } else {
-        // Réinitialisation
         setDate(getTodayDateStr());
         setSlot('matin');
         setTime(getCurrentTimeStr());
-        
-        setSysLeft('');
-        setDiaLeft('');
-        setPulseLeft('');
-
-        setSysRight('');
-        setDiaRight('');
-        setPulseRight('');
       }
       setError('');
     }
   }, [isOpen, initialData]);
+
+  // 2. Charger les données existantes pour la date et le créneau sélectionnés
+  useEffect(() => {
+    if (isOpen && data) {
+      const day = data[date];
+      const leftData = day?.slots[`${slot}_gauche`] || null;
+      const rightData = day?.slots[`${slot}_droit`] || null;
+
+      // Hydrater le bras gauche
+      setSysLeft(leftData?.sys || '');
+      setDiaLeft(leftData?.dia || '');
+      setPulseLeft(leftData?.pulse || '');
+
+      // Hydrater le bras droit
+      setSysRight(rightData?.sys || '');
+      setDiaRight(rightData?.dia || '');
+      setPulseRight(rightData?.pulse || '');
+
+      if (leftData?.time || rightData?.time) {
+        setTime(leftData?.time || rightData?.time);
+      }
+    }
+  }, [date, slot, isOpen, data]);
 
   if (!isOpen) return null;
 
