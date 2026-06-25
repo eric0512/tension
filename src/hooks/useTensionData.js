@@ -65,6 +65,45 @@ export const getCurrentTimeStr = () => {
   ].join(':');
 };
 
+// Recalculer la moyenne pour un bras spécifique (ou combiné si arm est null)
+const calculateAvgForArm = (slots, arm) => {
+  let count = 0;
+  let sysSum = 0;
+  let diaSum = 0;
+  let pulseSum = 0;
+
+  Object.entries(slots).forEach(([slotKey, slot]) => {
+    if (slot) {
+      const isRightSlot = slotKey.endsWith('_droit');
+      const isLeftSlot = slotKey.endsWith('_gauche');
+      
+      if (arm === null || (arm === 'droit' && isRightSlot) || (arm === 'gauche' && isLeftSlot)) {
+        count++;
+        sysSum += parseFloat(slot.sys);
+        diaSum += parseFloat(slot.dia);
+        pulseSum += parseFloat(slot.pulse);
+      }
+    }
+  });
+
+  if (count === 0) return null;
+
+  return {
+    sys: Math.round(sysSum / count),
+    dia: Math.round(diaSum / count),
+    pulse: Math.round(pulseSum / count),
+  };
+};
+
+// Recalculer toutes les moyennes d'une journée
+const calculateDailyAverage = (slots) => {
+  return {
+    gauche: calculateAvgForArm(slots, 'gauche'),
+    droit: calculateAvgForArm(slots, 'droit'),
+    global: calculateAvgForArm(slots, null), // combined
+  };
+};
+
 const STORAGE_KEY = 'suivi_tension_data';
 
 export const useTensionData = () => {
@@ -105,16 +144,14 @@ export const useTensionData = () => {
             if (day.slots[k] !== undefined) {
               const oldSlot = day.slots[k];
               if (oldSlot) {
-                // Associer au bon bras selon sa propriété
                 const arm = oldSlot.arm || 'gauche';
                 newSlots[`${k}_${arm}`] = oldSlot;
               }
-              // Supprimer l'ancienne clé
               delete day.slots[k];
             }
           });
 
-          // Réassigner les slots déjà existants s'ils étaient déjà migrés au nouveau format
+          // Réassigner les slots déjà existants
           const newKeys = ['matin_gauche', 'matin_droit', 'midi_gauche', 'midi_droit', 'soir_gauche', 'soir_droit'];
           newKeys.forEach(nk => {
             if (day.slots[nk] !== undefined) {
@@ -137,45 +174,6 @@ export const useTensionData = () => {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }, [data]);
-
-  // Recalculer la moyenne pour un bras spécifique (ou combiné si arm est null)
-  const calculateAvgForArm = (slots, arm) => {
-    let count = 0;
-    let sysSum = 0;
-    let diaSum = 0;
-    let pulseSum = 0;
-
-    Object.entries(slots).forEach(([slotKey, slot]) => {
-      if (slot) {
-        const isRightSlot = slotKey.endsWith('_droit');
-        const isLeftSlot = slotKey.endsWith('_gauche');
-        
-        if (arm === null || (arm === 'droit' && isRightSlot) || (arm === 'gauche' && isLeftSlot)) {
-          count++;
-          sysSum += parseFloat(slot.sys);
-          diaSum += parseFloat(slot.dia);
-          pulseSum += parseFloat(slot.pulse);
-        }
-      }
-    });
-
-    if (count === 0) return null;
-
-    return {
-      sys: Math.round(sysSum / count),
-      dia: Math.round(diaSum / count),
-      pulse: Math.round(pulseSum / count),
-    };
-  };
-
-  // Recalculer toutes les moyennes d'une journée
-  const calculateDailyAverage = (slots) => {
-    return {
-      gauche: calculateAvgForArm(slots, 'gauche'),
-      droit: calculateAvgForArm(slots, 'droit'),
-      global: calculateAvgForArm(slots, null), // combined
-    };
-  };
 
   // Enregistrer ou modifier une mesure
   const saveMeasurement = (dateStr, slotKey, measurement) => {
@@ -247,7 +245,6 @@ export const useTensionData = () => {
       slotsKeys.forEach((slotKey) => {
         const slot = day.slots[slotKey];
         if (slot) {
-          // Extraire le créneau sans le suffixe du bras pour le CSV
           const slotLabel = slotKey.split('_')[0].toUpperCase();
           rows.push([
             dateStr,
@@ -289,7 +286,6 @@ export const useTensionData = () => {
         };
         
         if (dayData.slots && typeof dayData.slots === 'object') {
-          // Gérer à la fois l'import de l'ancien format (3 slots) et du nouveau (6 slots)
           const keysToImport = [
             'matin', 'midi', 'soir', 
             'matin_gauche', 'matin_droit', 'midi_gauche', 'midi_droit', 'soir_gauche', 'soir_droit'
@@ -300,7 +296,6 @@ export const useTensionData = () => {
             if (s && typeof s === 'object' && s.sys && s.dia && s.pulse) {
               const arm = s.arm === 'droit' ? 'droit' : 'gauche';
               
-              // Déterminer la clé cible dans la structure à 6 slots
               let targetKey = key;
               if (key === 'matin' || key === 'midi' || key === 'soir') {
                 targetKey = `${key}_${arm}`;

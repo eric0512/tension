@@ -27,7 +27,7 @@ export default function HistoryList({ data, onDelete, onEditClick }) {
     const matchesSearch = 
       formattedDate.includes(search) || 
       Object.values(day.slots).some(
-        (slot) => slot && slot.note.toLowerCase().includes(search.toLowerCase())
+        (slot) => slot && slot.note && slot.note.toLowerCase().includes(search.toLowerCase())
       );
 
     // Filtre statut de la moyenne journalière
