@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, ChevronDown, ChevronUp, Edit2, Trash2, Calendar, BookOpen, AlertTriangle, Plus } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Edit2, Trash2, Calendar, BookOpen, Plus } from 'lucide-react';
 import { getBPStatus } from '../hooks/useTensionData';
 
 export default function HistoryList({ data, onDelete, onEditClick }) {
@@ -33,7 +33,8 @@ export default function HistoryList({ data, onDelete, onEditClick }) {
     // Filtre statut de la moyenne journalière
     let matchesStatus = true;
     if (statusFilter !== 'all' && day.avg) {
-      const bpStatus = getBPStatus(day.avg.sys, day.avg.dia);
+      const avgVal = day.avg.global || day.avg;
+      const bpStatus = getBPStatus(avgVal.sys, avgVal.dia);
       matchesStatus = bpStatus && bpStatus.class === statusFilter;
     } else if (statusFilter !== 'all' && !day.avg) {
       matchesStatus = false; // Exclure si pas de moyenne calculée
@@ -122,7 +123,10 @@ export default function HistoryList({ data, onDelete, onEditClick }) {
           {filteredDates.map((dateStr) => {
             const day = data[dateStr];
             const isExpanded = !!expandedDays[dateStr];
-            const bpStatus = day.avg ? getBPStatus(day.avg.sys, day.avg.dia) : null;
+            
+            // Récupérer la moyenne globale pour l'en-tête
+            const avgVal = day.avg?.global || day.avg;
+            const bpStatus = avgVal ? getBPStatus(avgVal.sys, avgVal.dia) : null;
 
             return (
               <div key={dateStr} className="history-day-card">
@@ -139,13 +143,10 @@ export default function HistoryList({ data, onDelete, onEditClick }) {
                   </div>
 
                   <div className="history-day-stats">
-                    {day.avg ? (
+                    {avgVal ? (
                       <>
                         <span className="history-stat-pill">
-                          Moy : <span>{day.avg.sys}/{day.avg.dia}</span> mmHg
-                        </span>
-                        <span className="history-stat-pill" style={{ display: 'none' }}>
-                          Pouls : <span>{day.avg.pulse}</span> bpm
+                          Moy : <span>{avgVal.sys}/{avgVal.dia}</span> mmHg
                         </span>
                         {bpStatus && (
                           <span 
@@ -194,7 +195,7 @@ export default function HistoryList({ data, onDelete, onEditClick }) {
                                   {slot.sys}/{slot.dia} <span style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-muted)' }}>mmHg</span>
                                 </span>
                                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                                  💓 {slot.pulse} bpm
+                                  💓 {slot.pulse} bpm • {slot.arm === 'droit' ? 'Bras droit 👉' : '👈 Bras gauche'}
                                 </span>
                               </div>
                               <span className="details-slot-notes" title={slot.note}>

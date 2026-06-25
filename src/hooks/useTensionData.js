@@ -73,17 +73,43 @@ export const useTensionData = () => {
   //   '2026-06-25': {
   //     date: '2026-06-25',
   //     slots: {
-  //       matin: { sys: 120, dia: 80, pulse: 70, time: '08:30', note: 'Au réveil' } | null,
+  //       matin: { sys: 120, dia: 80, pulse: 70, arm: 'gauche', time: '08:30', note: '' } | null,
   //       midi: null,
   //       soir: null
   //     },
-  //     avg: { sys: 120, dia: 80, pulse: 70 }
+  //     avg: {
+  //       gauche: { sys: 120, dia: 80, pulse: 70 },
+  //       droit: null,
+  //       global: { sys: 120, dia: 80, pulse: 70 }
+  //     }
   //   }
   // }
   const [data, setData] = useState(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : {};
+      if (!stored) return {};
+      
+      const parsed = JSON.parse(stored);
+      // Migration des anciennes données au nouveau format de moyennes si nécessaire
+      Object.keys(parsed).forEach((dateStr) => {
+        const day = parsed[dateStr];
+        if (day.avg && (!day.avg.global && !day.avg.gauche)) {
+          // C'est un ancien format de moyenne combinée
+          const oldAvg = day.avg;
+          
+          // Mettre à jour les créneaux avec 'gauche' par défaut si absent
+          const slotsKeys = ['matin', 'midi', 'soir'];
+          slotsKeys.forEach(k => {
+            if (day.slots[k] && !day.slots[k].arm) {
+              day.slots[k].arm = 'gauche';
+            }
+          });
+
+          // Recalculer les moyennes avec le nouveau système
+          day.avg = calculateDailyAverage(day.slots);
+        }
+      });
+      return parsed;
     } catch (e) {
       console.error('Erreur lors du chargement des données depuis localStorage', e);
       return {};
@@ -95,15 +121,15 @@ export const useTensionData = () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }, [data]);
 
-  // Recalculer la moyenne pour une journée
-  const calculateDailyAverage = (slots) => {
+  // Recalculer la moyenne pour un bras spécifique (ou combiné si arm est null)
+  const calculateAvgForArm = (slots, arm) => {
     let count = 0;
     let sysSum = 0;
     let diaSum = 0;
     let pulseSum = 0;
 
     Object.values(slots).forEach((slot) => {
-      if (slot) {
+      if (slot && (arm === null || slot.arm === arm)) {
         count++;
         sysSum += parseFloat(slot.sys);
         diaSum += parseFloat(slot.dia);
@@ -117,6 +143,15 @@ export const useTensionData = () => {
       sys: Math.round(sysSum / count),
       dia: Math.round(diaSum / count),
       pulse: Math.round(pulseSum / count),
+    };
+  };
+
+  // Recalculer toutes les moyennes d'une journée
+  const calculateDailyAverage = (slots) => {
+    return {
+      gauche: calculateAvgForArm(slots, 'gauche'),
+      droit: calculateAvgForArm(slots, 'droit'),
+      global: calculateAvgForArm(slots, null), // combined
     };
   };
 
@@ -135,6 +170,7 @@ export const useTensionData = () => {
               sys: parseInt(measurement.sys, 10),
               dia: parseInt(measurement.dia, 10),
               pulse: parseInt(measurement.pulse, 10),
+              arm: measurement.arm || 'gauche', // 'gauche' ou 'droit'
               time: measurement.time || getCurrentTimeStr(),
               note: measurement.note || '',
             }
@@ -143,7 +179,6 @@ export const useTensionData = () => {
 
       const updatedAvg = calculateDailyAverage(updatedSlots);
 
-      // Si tous les créneaux sont vides pour ce jour, on supprime carrément la journée
       const nextData = { ...prev };
       if (!updatedSlots.matin && !updatedSlots.midi && !updatedSlots.soir) {
         delete nextData[dateStr];
@@ -171,7 +206,7 @@ export const useTensionData = () => {
 
   // Exporter au format CSV
   const exportDataCSV = () => {
-    const headers = ['Date', 'Créneau', 'Systolique (mmHg)', 'Diastolique (mmHg)', 'Pouls (bpm)', 'Heure', 'Note', 'Moyenne Systolique', 'Moyenne Diastolique', 'Moyenne Pouls'];
+    const headers = ['Date', 'Créneau', 'Systolique (mmHg)', 'Diastolique (mmHg)', 'Pouls (bpm)', 'Bras', 'Heure', 'Note', 'Moyenne Globale Systolique', 'Moyenne Globale Diastolique', 'Moyenne Globale Pouls'];
     const rows = [headers];
 
     // Trier les dates par ordre décroissant
@@ -190,11 +225,12 @@ export const useTensionData = () => {
             slot.sys,
             slot.dia,
             slot.pulse,
+            slot.arm || 'GAUCHE',
             slot.time,
             `"${slot.note.replace(/"/g, '""')}"`,
-            day.avg?.sys || '',
-            day.avg?.dia || '',
-            day.avg?.pulse || ''
+            day.avg?.global?.sys || day.avg?.sys || '',
+            day.avg?.global?.dia || day.avg?.dia || '',
+            day.avg?.global?.pulse || day.avg?.pulse || ''
           ]);
         }
       });
@@ -206,7 +242,6 @@ export const useTensionData = () => {
   // Importer les données depuis un objet JSON
   const importData = (importedObject) => {
     try {
-      // Validation basique de la structure importée
       if (typeof importedObject !== 'object' || importedObject === null) {
         throw new Error('Format de données invalide.');
       }
@@ -214,7 +249,6 @@ export const useTensionData = () => {
       const validatedData = {};
 
       Object.entries(importedObject).forEach(([dateStr, dayData]) => {
-        // Valider le format de la date YYYY-MM-DD
         if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return;
         if (!dayData || typeof dayData !== 'object') return;
 
@@ -227,6 +261,7 @@ export const useTensionData = () => {
                 sys: parseInt(s.sys, 10),
                 dia: parseInt(s.dia, 10),
                 pulse: parseInt(s.pulse, 10),
+                arm: s.arm === 'droit' ? 'droit' : 'gauche',
                 time: s.time || '12:00',
                 note: s.note || '',
               };

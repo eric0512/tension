@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Heart, Activity, Clipboard } from 'lucide-react';
+import { X, Clipboard } from 'lucide-react';
 import { getBPStatus, getCurrentTimeStr, getTodayDateStr } from '../hooks/useTensionData';
 
 export default function MeasurementForm({ isOpen, onClose, onSave, initialData }) {
@@ -8,6 +8,7 @@ export default function MeasurementForm({ isOpen, onClose, onSave, initialData }
   const [sys, setSys] = useState('');
   const [dia, setDia] = useState('');
   const [pulse, setPulse] = useState('');
+  const [arm, setArm] = useState('gauche'); // 'gauche' ou 'droit'
   const [time, setTime] = useState(getCurrentTimeStr());
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
@@ -21,6 +22,7 @@ export default function MeasurementForm({ isOpen, onClose, onSave, initialData }
         setSys(initialData.sys || '');
         setDia(initialData.dia || '');
         setPulse(initialData.pulse || '');
+        setArm(initialData.arm || 'gauche');
         setTime(initialData.time || getCurrentTimeStr());
         setNote(initialData.note || '');
       } else {
@@ -30,6 +32,7 @@ export default function MeasurementForm({ isOpen, onClose, onSave, initialData }
         setSys('');
         setDia('');
         setPulse('');
+        setArm('gauche');
         setTime(getCurrentTimeStr());
         setNote('');
       }
@@ -60,7 +63,7 @@ export default function MeasurementForm({ isOpen, onClose, onSave, initialData }
       return;
     }
 
-    onSave(date, slot, { sys: s, dia: d, pulse: p, time, note });
+    onSave(date, slot, { sys: s, dia: d, pulse: p, arm, time, note });
     onClose();
   };
 
@@ -120,6 +123,29 @@ export default function MeasurementForm({ isOpen, onClose, onSave, initialData }
                 <option value="midi">🌤️ Midi</option>
                 <option value="soir">🌙 Soir</option>
               </select>
+            </div>
+          </div>
+
+          {/* Saisie du bras de la mesure */}
+          <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+            <label className="form-label">Bras mesuré</label>
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.35rem' }}>
+              <button
+                type="button"
+                className={`nav-tab ${arm === 'gauche' ? 'active' : ''}`}
+                style={{ flex: 1, padding: '0.6rem 0', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '0.4rem', border: '1px solid var(--border-color)' }}
+                onClick={() => setArm('gauche')}
+              >
+                👈 Bras Gauche
+              </button>
+              <button
+                type="button"
+                className={`nav-tab ${arm === 'droit' ? 'active' : ''}`}
+                style={{ flex: 1, padding: '0.6rem 0', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '0.4rem', border: '1px solid var(--border-color)' }}
+                onClick={() => setArm('droit')}
+              >
+                Bras Droit 👉
+              </button>
             </div>
           </div>
 

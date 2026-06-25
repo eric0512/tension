@@ -54,8 +54,67 @@ export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
   const progressPercent = (completedSlots / 3) * 100;
   const strokeDashoffset = circumference - (progressPercent / 100) * circumference;
 
-  // Récupérer le statut médical pour la moyenne
-  const bpStatus = dayData.avg ? getBPStatus(dayData.avg.sys, dayData.avg.dia) : null;
+  // Récupérer le statut médical pour la moyenne globale
+  const bpStatus = dayData.avg?.global ? getBPStatus(dayData.avg.global.sys, dayData.avg.global.dia) : null;
+
+  // Rendu d'une section de moyennes par bras
+  const renderAvgSection = (title, avg, armColor, defaultLabel) => {
+    const status = avg ? getBPStatus(avg.sys, avg.dia) : null;
+    return (
+      <div style={{ marginBottom: '1.25rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+          <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: armColor }}></span>
+            {title}
+          </h4>
+          {status && (
+            <span className={`status-badge ${status.class}`} style={{ margin: 0, padding: '0.15rem 0.6rem', fontSize: '0.7rem', fontWeight: 600 }}>
+              {status.label}
+            </span>
+          )}
+        </div>
+        
+        {avg ? (
+          <div className="summary-row" style={{ marginBottom: 0 }}>
+            <div className="summary-item" style={{ padding: '0.8rem 0.5rem' }}>
+              <div className="summary-label" style={{ fontSize: '0.7rem' }}>Systolique</div>
+              <div className="summary-value" style={{ fontSize: '1.4rem', color: status ? `var(--bp-${status.class.split('-')[1]})` : 'inherit' }}>
+                {avg.sys}
+                <span style={{ fontSize: '0.7rem' }}>mmHg</span>
+              </div>
+            </div>
+            <div className="summary-item" style={{ padding: '0.8rem 0.5rem' }}>
+              <div className="summary-label" style={{ fontSize: '0.7rem' }}>Diastolique</div>
+              <div className="summary-value" style={{ fontSize: '1.4rem', color: status ? `var(--bp-${status.class.split('-')[1]})` : 'inherit' }}>
+                {avg.dia}
+                <span style={{ fontSize: '0.7rem' }}>mmHg</span>
+              </div>
+            </div>
+            <div className="summary-item" style={{ padding: '0.8rem 0.5rem' }}>
+              <div className="summary-label" style={{ fontSize: '0.7rem' }}>Pouls</div>
+              <div className="summary-value" style={{ fontSize: '1.4rem' }}>
+                {avg.pulse}
+                <span style={{ fontSize: '0.7rem' }}>bpm</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ 
+            background: 'rgba(10, 15, 29, 0.2)', 
+            padding: '0.8rem', 
+            borderRadius: 'var(--radius-md)', 
+            textAlign: 'center', 
+            fontSize: '0.8rem', 
+            color: 'var(--text-muted)',
+            fontStyle: 'italic',
+            border: '1px dashed rgba(255,255,255,0.03)'
+          }}>
+            Aucune mesure prise sur le {defaultLabel}.
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="dashboard-grid">
@@ -100,40 +159,22 @@ export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
           </div>
         </div>
 
-        {/* Moyenne du Jour */}
+        {/* Moyennes du Jour (Bras Gauche & Bras Droit) */}
         <div className="glass-card">
           <div className="card-title">
             <Heart size={20} style={{ color: '#ef4444' }} />
-            Moyenne du Jour
+            Moyennes du Jour
           </div>
           
-          <div className="summary-row">
-            <div className="summary-item">
-              <div className="summary-label">Systolique</div>
-              <div className="summary-value" style={{ color: bpStatus ? `var(--bp-${bpStatus.class.split('-')[1]})` : 'inherit' }}>
-                {dayData.avg ? dayData.avg.sys : '--'}
-                <span>mmHg</span>
-              </div>
+          {dayData.avg ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {renderAvgSection('Bras Gauche', dayData.avg.gauche, 'var(--primary)', 'bras gauche')}
+              <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)', margin: '0.5rem 0' }}></div>
+              {renderAvgSection('Bras Droit', dayData.avg.droit, 'var(--accent)', 'bras droit')}
             </div>
-            <div className="summary-item">
-              <div className="summary-label">Diastolique</div>
-              <div className="summary-value" style={{ color: bpStatus ? `var(--bp-${bpStatus.class.split('-')[1]})` : 'inherit' }}>
-                {dayData.avg ? dayData.avg.dia : '--'}
-                <span>mmHg</span>
-              </div>
-            </div>
-            <div className="summary-item">
-              <div className="summary-label">Pouls</div>
-              <div className="summary-value">
-                {dayData.avg ? dayData.avg.pulse : '--'}
-                <span>bpm</span>
-              </div>
-            </div>
-          </div>
-
-          {!dayData.avg && (
-            <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem', fontStyle: 'italic', paddingBottom: '0.5rem' }}>
-              Entrez au moins une mesure pour calculer la moyenne journalière.
+          ) : (
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem', fontStyle: 'italic', padding: '1.5rem 0' }}>
+              Entrez au moins une mesure pour calculer les moyennes journalières.
             </div>
           )}
         </div>
@@ -169,17 +210,13 @@ export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
                     {slotData ? (
                       <>
                         <div className="slot-numbers">
-                          <div className="slot-bp">{slotData.sys}/{slotData.dia} <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>mmHg</span></div>
-                          <div className="slot-pulse">💓 {slotData.pulse} bpm</div>
+                          <div className="slot-bp">
+                            {slotData.sys}/{slotData.dia} <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>mmHg</span>
+                          </div>
+                          <div className="slot-pulse">
+                            💓 {slotData.pulse} bpm • {slotData.arm === 'droit' ? 'Bras droit 👉' : '👈 Bras gauche'}
+                          </div>
                         </div>
-                        {slotData.note && (
-                          <div 
-                            title={slotData.note} 
-                            style={{ 
-                              display: 'none', // caché par défaut mais utile pour tooltip
-                            }} 
-                          />
-                        )}
                         <button className="btn-icon edit" aria-label="Modifier">
                           <Edit2 size={16} />
                         </button>
@@ -266,7 +303,7 @@ export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
             {bpStatus ? (
               <div style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
-                  Catégorie de Moyenne
+                  Classification (Globale)
                 </div>
                 <div className={`status-badge ${bpStatus.class}`}>
                   {bpStatus.label}

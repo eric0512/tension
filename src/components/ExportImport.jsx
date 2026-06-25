@@ -104,19 +104,27 @@ export default function ExportImport({
       return;
     }
 
-    // Calculs de statistiques pour le rapport
+    // Calculs de statistiques split par bras pour le rapport
     let totalReadings = 0;
-    let sysSum = 0;
-    let diaSum = 0;
-    let pulseSum = 0;
+    
+    let sysSumG = 0, diaSumG = 0, pulseSumG = 0, countG = 0;
+    let sysSumD = 0, diaSumD = 0, pulseSumD = 0, countD = 0;
 
     filteredDays.forEach((day) => {
       Object.values(day.slots).forEach((slot) => {
         if (slot) {
           totalReadings++;
-          sysSum += slot.sys;
-          diaSum += slot.dia;
-          pulseSum += slot.pulse;
+          if (slot.arm === 'droit') {
+            countD++;
+            sysSumD += slot.sys;
+            diaSumD += slot.dia;
+            pulseSumD += slot.pulse;
+          } else {
+            countG++;
+            sysSumG += slot.sys;
+            diaSumG += slot.dia;
+            pulseSumG += slot.pulse;
+          }
         }
       });
     });
@@ -126,10 +134,13 @@ export default function ExportImport({
       return;
     }
 
-    const avgSys = Math.round(sysSum / totalReadings);
-    const avgDia = Math.round(diaSum / totalReadings);
-    const avgPulse = Math.round(pulseSum / totalReadings);
-    const bpStatus = getBPStatus(avgSys, avgDia);
+    const avgSysG = countG > 0 ? Math.round(sysSumG / countG) : null;
+    const avgDiaG = countG > 0 ? Math.round(diaSumG / countG) : null;
+    const avgPulseG = countG > 0 ? Math.round(pulseSumG / countG) : null;
+
+    const avgSysD = countD > 0 ? Math.round(sysSumD / countD) : null;
+    const avgDiaD = countD > 0 ? Math.round(diaSumD / countD) : null;
+    const avgPulseD = countD > 0 ? Math.round(pulseSumD / countD) : null;
 
     // Formater les dates pour l'affichage en français
     const formatDateFR = (dStr) => dStr.split('-').reverse().join('/');
@@ -158,6 +169,7 @@ export default function ExportImport({
           const status = getBPStatus(slot.sys, slot.dia);
           const statusColor = status ? `var(--bp-${status.class.split('-')[1]})` : '#0f172a';
           const slotLabel = slotKey === 'matin' ? 'Matin' : slotKey === 'midi' ? 'Midi' : 'Soir';
+          const armLabel = slot.arm === 'droit' ? 'Bras droit 👉' : '👈 Bras gauche';
 
           tableRowsHtml += `
             <tr>
@@ -165,6 +177,7 @@ export default function ExportImport({
               <td>${slotLabel}</td>
               <td style="font-weight: bold; color: ${statusColor};">${slot.sys}/${slot.dia} <span style="font-size: 9px; font-weight: normal; color: #64748b;">mmHg</span></td>
               <td>💓 ${slot.pulse} <span style="font-size: 9px; color: #64748b;">bpm</span></td>
+              <td>${armLabel}</td>
               <td style="font-style: italic; color: #475569; font-size: 11px;">${slot.note || ''}</td>
             </tr>
           `;
@@ -185,6 +198,7 @@ export default function ExportImport({
           
           :root {
             --primary: #3b82f6;
+            --accent: #06b6d4;
             --text-primary: #0f172a;
             --text-secondary: #475569;
             --border-color: #cbd5e1;
@@ -247,8 +261,8 @@ export default function ExportImport({
           
           .summary-row {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 12px;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
             margin-bottom: 25px;
           }
           
@@ -256,29 +270,37 @@ export default function ExportImport({
             background-color: var(--bg-light);
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            padding: 12px;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
+            padding: 15px;
+            text-align: left;
           }
           
-          .summary-card.accent {
-            border-top: 3px solid var(--primary);
+          .summary-card.left-arm {
+            border-top: 4px solid var(--primary);
+          }
+          
+          .summary-card.right-arm {
+            border-top: 4px solid var(--accent);
           }
           
           .summary-label {
-            font-size: 10px;
+            font-size: 11px;
             text-transform: uppercase;
-            font-weight: 600;
+            font-weight: 700;
             color: var(--text-secondary);
-            margin-bottom: 4px;
+            margin-bottom: 8px;
             letter-spacing: 0.05em;
           }
           
+          .summary-stats-box {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 6px;
+          }
+          
           .summary-value {
-            font-size: 20px;
-            font-weight: 700;
+            font-size: 22px;
+            font-weight: 800;
           }
           
           .summary-value span {
@@ -289,11 +311,10 @@ export default function ExportImport({
           
           .status-badge {
             display: inline-block;
-            padding: 4px 8px;
+            padding: 3px 8px;
             border-radius: 20px;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 700;
-            margin-top: 4px;
             text-align: center;
           }
           
@@ -301,7 +322,7 @@ export default function ExportImport({
           .status-elevated { background-color: rgba(217, 119, 6, 0.12); color: var(--bp-elevated); }
           .status-stage1 { background-color: rgba(234, 88, 12, 0.12); color: var(--bp-stage1); }
           .status-stage2 { background-color: rgba(239, 68, 68, 0.12); color: var(--bp-stage2); }
-          .status-crisis { background-color: rgba(185, 28, 28, 0.15); color: var(--bp-crisis); font-weight: 800; }
+          .status-crisis { background-color: rgba(185, 28, 28, 0.15); color: var(--bp-crisis); }
           
           table {
             width: 100%;
@@ -358,27 +379,36 @@ export default function ExportImport({
         </div>
         
         <div class="summary-row">
-          <div class="summary-card accent">
-            <div class="summary-label">Moyenne Systolique</div>
-            <div class="summary-value" style="color: var(--bp-${bpStatus?.class.split('-')[1] || 'normal'})">
-              ${avgSys} <span>mmHg</span>
-            </div>
+          {/* Averages Bras Gauche */}
+          <div class="summary-card left-arm">
+            <div class="summary-label">Moyenne Bras Gauche</div>
+            ${avgSysG ? `
+              <div class="summary-stats-box">
+                <span class="summary-value" style="color: var(--primary);">${avgSysG}/${avgDiaG} <span style="font-size: 11px; font-weight: normal;">mmHg</span></span>
+                <span style="font-size: 12px; color: var(--text-secondary); font-weight: 600;">💓 ${avgPulseG} bpm</span>
+              </div>
+              <span class="status-badge ${getBPStatus(avgSysG, avgDiaG)?.class || 'status-normal'}">
+                ${getBPStatus(avgSysG, avgDiaG)?.label || 'Tension Normale'}
+              </span>
+            ` : `
+              <div style="font-style: italic; color: #64748b; font-size: 12px; padding: 5px 0;">Aucune mesure bras gauche</div>
+            `}
           </div>
-          <div class="summary-card accent">
-            <div class="summary-label">Moyenne Diastolique</div>
-            <div class="summary-value" style="color: var(--bp-${bpStatus?.class.split('-')[1] || 'normal'})">
-              ${avgDia} <span>mmHg</span>
-            </div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-label">Moyenne Pouls</div>
-            <div class="summary-value">${avgPulse} <span>bpm</span></div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-label">Statut Général</div>
-            <div>
-              <span class="status-badge ${bpStatus?.class || 'status-normal'}">${bpStatus?.label || 'Tension Normale'}</span>
-            </div>
+
+          {/* Averages Bras Droit */}
+          <div class="summary-card right-arm">
+            <div class="summary-label">Moyenne Bras Droit</div>
+            ${avgSysD ? `
+              <div class="summary-stats-box">
+                <span class="summary-value" style="color: var(--accent);">${avgSysD}/${avgDiaD} <span style="font-size: 11px; font-weight: normal;">mmHg</span></span>
+                <span style="font-size: 12px; color: var(--text-secondary); font-weight: 600;">💓 ${avgPulseD} bpm</span>
+              </div>
+              <span class="status-badge ${getBPStatus(avgSysD, avgDiaD)?.class || 'status-normal'}">
+                ${getBPStatus(avgSysD, avgDiaD)?.label || 'Tension Normale'}
+              </span>
+            ` : `
+              <div style="font-style: italic; color: #64748b; font-size: 12px; padding: 5px 0;">Aucune mesure bras droit</div>
+            `}
           </div>
         </div>
         
@@ -391,8 +421,9 @@ export default function ExportImport({
               <th style="width: 18%">Date</th>
               <th style="width: 12%">Créneau</th>
               <th style="width: 25%">Mesure Tensionnelle</th>
-              <th style="width: 20%">Pouls (Cardiaque)</th>
-              <th style="width: 25%">Symptômes & Notes</th>
+              <th style="width: 18%">Pouls (Cardiaque)</th>
+              <th style="width: 15%">Côté</th>
+              <th style="width: 12%">Notes & Symptômes</th>
             </tr>
           </thead>
           <tbody>

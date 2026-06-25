@@ -15,9 +15,9 @@ export default function TrendChart({ data }) {
         return {
           dateStr,
           displayDate: dateStr.split('-').slice(1).reverse().join('/'), // MM/DD -> DD/MM
-          sys: day.avg.sys,
-          dia: day.avg.dia,
-          pulse: day.avg.pulse,
+          sys: day.avg.global ? day.avg.global.sys : day.avg.sys,
+          dia: day.avg.global ? day.avg.global.dia : day.avg.dia,
+          pulse: day.avg.global ? day.avg.global.pulse : day.avg.pulse,
         };
       })
       .filter(Boolean);
