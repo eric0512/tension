@@ -182,15 +182,15 @@ export default function MeasurementForm({ isOpen, onClose, onSave, initialData }
           {/* Saisie en colonnes responsive */}
           <div style={{ 
             display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', 
-            gap: '1.25rem', 
+            gridTemplateColumns: '1fr 1fr', 
+            gap: '0.75rem', 
             marginBottom: '1.25rem' 
           }}>
             
             {/* Colonne Bras Gauche */}
-            <div className="settings-card" style={{ background: 'rgba(59, 130, 246, 0.02)', borderColor: 'rgba(59, 130, 246, 0.15)', display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '1.25rem' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem', marginBottom: '0.25rem' }}>
-                👈 Bras Gauche
+            <div className="settings-card form-column-card" style={{ background: 'rgba(59, 130, 246, 0.02)', borderColor: 'rgba(59, 130, 246, 0.15)', display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.85rem' }}>
+              <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem', marginBottom: '0.25rem' }}>
+                👈 Gauche
               </h3>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
@@ -252,9 +252,9 @@ export default function MeasurementForm({ isOpen, onClose, onSave, initialData }
             </div>
 
             {/* Colonne Bras Droit */}
-            <div className="settings-card" style={{ background: 'rgba(6, 182, 212, 0.02)', borderColor: 'rgba(6, 182, 212, 0.15)', display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '1.25rem' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem', marginBottom: '0.25rem' }}>
-                Bras Droit 👉
+            <div className="settings-card form-column-card" style={{ background: 'rgba(6, 182, 212, 0.02)', borderColor: 'rgba(6, 182, 212, 0.15)', display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.85rem' }}>
+              <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem', marginBottom: '0.25rem' }}>
+                Droit 👉
               </h3>
 
               <div className="form-group" style={{ marginBottom: 0 }}>

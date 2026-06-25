@@ -456,6 +456,7 @@ a {
   position: relative;
   width: 100%;
   gap: 0.5rem;
+  padding-bottom: 1.5rem;
 }
 
 .chart-svg {
