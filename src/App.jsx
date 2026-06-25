@@ -162,6 +162,7 @@ export default function App() {
 
         {activeTab === 'settings' && (
           <ExportImport 
+            data={data}
             exportDataJSON={exportDataJSON}
             exportDataCSV={exportDataCSV}
             onImport={importData}

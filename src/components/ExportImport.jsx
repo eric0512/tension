@@ -1,7 +1,9 @@
-import React, { useRef } from 'react';
-import { Download, Upload, Trash2, ShieldAlert, FileJson, FileSpreadsheet } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Download, Upload, Trash2, ShieldAlert, FileJson, FileSpreadsheet, Printer, Calendar } from 'lucide-react';
+import { getBPStatus, getTodayDateStr } from '../hooks/useTensionData';
 
 export default function ExportImport({ 
+  data,
   exportDataJSON, 
   exportDataCSV, 
   onImport, 
@@ -9,6 +11,11 @@ export default function ExportImport({
   showToast 
 }) {
   const fileInputRef = useRef(null);
+  
+  // États pour l'exportation PDF
+  const [pdfPeriod, setPdfPeriod] = useState('7'); // '7', '30', 'custom'
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState(getTodayDateStr());
 
   // Gérer le téléchargement de fichier
   const downloadFile = (content, filename, contentType) => {
@@ -47,6 +54,372 @@ export default function ExportImport({
     } catch (e) {
       showToast('Erreur lors de l\'exportation CSV.', 'error');
     }
+  };
+
+  // Calculer une date passée
+  const getPastDateStr = (daysAgo) => {
+    const d = new Date();
+    d.setDate(d.getDate() - daysAgo);
+    const year = d.getFullYear();
+    const month = ('' + (d.getMonth() + 1)).padStart(2, '0');
+    const day = ('' + d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Générer le PDF via l'iframe d'impression
+  const handleExportPDF = () => {
+    const sortedDates = Object.keys(data).sort((a, b) => a.localeCompare(b)); // Ordre chronologique
+    
+    if (sortedDates.length === 0) {
+      showToast('Aucune mesure enregistrée dans l\'historique.', 'error');
+      return;
+    }
+
+    let limitStartDate = '';
+    let limitEndDate = endDate || getTodayDateStr();
+
+    if (pdfPeriod === '7') {
+      limitStartDate = getPastDateStr(6); // 7 jours incluant aujourd'hui
+    } else if (pdfPeriod === '30') {
+      limitStartDate = getPastDateStr(29); // 30 jours incluant aujourd'hui
+    } else if (pdfPeriod === 'custom') {
+      if (!startDate) {
+        showToast('Veuillez sélectionner une date de début.', 'error');
+        return;
+      }
+      limitStartDate = startDate;
+    }
+
+    // Filtrer les jours
+    const filteredDays = sortedDates
+      .filter((dateStr) => {
+        if (limitStartDate && dateStr < limitStartDate) return false;
+        if (limitEndDate && dateStr > limitEndDate) return false;
+        return true;
+      })
+      .map((dateStr) => data[dateStr]);
+
+    if (filteredDays.length === 0) {
+      showToast('Aucune mesure trouvée pour la période sélectionnée.', 'error');
+      return;
+    }
+
+    // Calculs de statistiques pour le rapport
+    let totalReadings = 0;
+    let sysSum = 0;
+    let diaSum = 0;
+    let pulseSum = 0;
+
+    filteredDays.forEach((day) => {
+      Object.values(day.slots).forEach((slot) => {
+        if (slot) {
+          totalReadings++;
+          sysSum += slot.sys;
+          diaSum += slot.dia;
+          pulseSum += slot.pulse;
+        }
+      });
+    });
+
+    if (totalReadings === 0) {
+      showToast('Aucune mesure individuelle enregistrée sur cette période.', 'error');
+      return;
+    }
+
+    const avgSys = Math.round(sysSum / totalReadings);
+    const avgDia = Math.round(diaSum / totalReadings);
+    const avgPulse = Math.round(pulseSum / totalReadings);
+    const bpStatus = getBPStatus(avgSys, avgDia);
+
+    // Formater les dates pour l'affichage en français
+    const formatDateFR = (dStr) => dStr.split('-').reverse().join('/');
+    const startDisplay = limitStartDate ? formatDateFR(limitStartDate) : formatDateFR(sortedDates[0]);
+    const endDisplay = formatDateFR(limitEndDate);
+
+    // Création de l'iframe de façon invisible
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+
+    // Génération des lignes de tableau
+    let tableRowsHtml = '';
+    filteredDays.forEach((day) => {
+      const dateDisplay = formatDateFR(day.date);
+      ['matin', 'midi', 'soir'].forEach((slotKey) => {
+        const slot = day.slots[slotKey];
+        if (slot) {
+          const status = getBPStatus(slot.sys, slot.dia);
+          const statusColor = status ? `var(--bp-${status.class.split('-')[1]})` : '#0f172a';
+          const slotLabel = slotKey === 'matin' ? 'Matin' : slotKey === 'midi' ? 'Midi' : 'Soir';
+
+          tableRowsHtml += `
+            <tr>
+              <td><strong>${dateDisplay}</strong></td>
+              <td>${slotLabel}</td>
+              <td style="font-weight: bold; color: ${statusColor};">${slot.sys}/${slot.dia} <span style="font-size: 9px; font-weight: normal; color: #64748b;">mmHg</span></td>
+              <td>💓 ${slot.pulse} <span style="font-size: 9px; color: #64748b;">bpm</span></td>
+              <td style="font-style: italic; color: #475569; font-size: 11px;">${slot.note || ''}</td>
+            </tr>
+          `;
+        }
+      });
+    });
+
+    // Écriture du contenu dans l'iframe
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Rapport de Suivi Tensionnel - ${startDisplay} au ${endDisplay}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+          
+          :root {
+            --primary: #3b82f6;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --border-color: #cbd5e1;
+            --bg-light: #f8fafc;
+            
+            --bp-normal: #10b981;
+            --bp-elevated: #d97706;
+            --bp-stage1: #ea580c;
+            --bp-stage2: #ef4444;
+            --bp-crisis: #b91c1c;
+          }
+          
+          * { box-sizing: border-box; }
+          
+          body {
+            font-family: 'Outfit', sans-serif;
+            color: var(--text-primary);
+            margin: 0;
+            padding: 20px;
+            font-size: 13px;
+            line-height: 1.4;
+            background-color: white;
+          }
+          
+          .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 12px;
+            margin-bottom: 20px;
+          }
+          
+          .title-area h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--primary);
+            letter-spacing: -0.02em;
+          }
+          
+          .title-area p {
+            margin: 3px 0 0 0;
+            color: var(--text-secondary);
+            font-size: 12px;
+          }
+          
+          .meta-area {
+            text-align: right;
+            font-size: 11px;
+            color: var(--text-secondary);
+          }
+          
+          .meta-area h2 {
+            margin: 0 0 4px 0;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-primary);
+          }
+          
+          .summary-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 25px;
+          }
+          
+          .summary-card {
+            background-color: var(--bg-light);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          }
+          
+          .summary-card.accent {
+            border-top: 3px solid var(--primary);
+          }
+          
+          .summary-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+            letter-spacing: 0.05em;
+          }
+          
+          .summary-value {
+            font-size: 20px;
+            font-weight: 700;
+          }
+          
+          .summary-value span {
+            font-size: 11px;
+            font-weight: 400;
+            color: #64748b;
+          }
+          
+          .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            margin-top: 4px;
+            text-align: center;
+          }
+          
+          .status-normal { background-color: rgba(16, 185, 129, 0.12); color: var(--bp-normal); }
+          .status-elevated { background-color: rgba(217, 119, 6, 0.12); color: var(--bp-elevated); }
+          .status-stage1 { background-color: rgba(234, 88, 12, 0.12); color: var(--bp-stage1); }
+          .status-stage2 { background-color: rgba(239, 68, 68, 0.12); color: var(--bp-stage2); }
+          .status-crisis { background-color: rgba(185, 28, 28, 0.15); color: var(--bp-crisis); font-weight: 800; }
+          
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+          }
+          
+          th, td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+          }
+          
+          th {
+            background-color: #f1f5f9;
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+          }
+          
+          tr:nth-child(even) td {
+            background-color: var(--bg-light);
+          }
+          
+          .disclaimer {
+            margin-top: 35px;
+            padding-top: 15px;
+            border-top: 1px solid var(--border-color);
+            font-size: 10px;
+            color: var(--text-secondary);
+            text-align: center;
+            line-height: 1.5;
+          }
+          
+          @media print {
+            body { padding: 0; }
+            @page { margin: 1.5cm; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="title-area">
+            <h1>Rapport Clinique de Tension</h1>
+            <p>Carnet d'auto-mesures de la tension artérielle</p>
+          </div>
+          <div class="meta-area">
+            <h2>Suivi Personnel</h2>
+            <div>Période : Du <strong>${startDisplay}</strong> au <strong>${endDisplay}</strong></div>
+            <div style="margin-top: 2px;">Imprimé le : ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}</div>
+          </div>
+        </div>
+        
+        <div class="summary-row">
+          <div class="summary-card accent">
+            <div class="summary-label">Moyenne Systolique</div>
+            <div class="summary-value" style="color: var(--bp-${bpStatus?.class.split('-')[1] || 'normal'})">
+              ${avgSys} <span>mmHg</span>
+            </div>
+          </div>
+          <div class="summary-card accent">
+            <div class="summary-label">Moyenne Diastolique</div>
+            <div class="summary-value" style="color: var(--bp-${bpStatus?.class.split('-')[1] || 'normal'})">
+              ${avgDia} <span>mmHg</span>
+            </div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Moyenne Pouls</div>
+            <div class="summary-value">${avgPulse} <span>bpm</span></div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Statut Général</div>
+            <div>
+              <span class="status-badge ${bpStatus?.class || 'status-normal'}">${bpStatus?.label || 'Tension Normale'}</span>
+            </div>
+          </div>
+        </div>
+        
+        <h3 style="font-size: 14px; font-weight: 700; margin: 20px 0 8px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 4px;">
+          Historique des mesures individuelles (${totalReadings})
+        </h3>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 18%">Date</th>
+              <th style="width: 12%">Créneau</th>
+              <th style="width: 25%">Mesure Tensionnelle</th>
+              <th style="width: 20%">Pouls (Cardiaque)</th>
+              <th style="width: 25%">Symptômes & Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRowsHtml}
+          </tbody>
+        </table>
+        
+        <div class="disclaimer">
+          <strong>⚠️ Informations importantes :</strong> Ce compte-rendu contient des mesures de tension artérielle relevées à domicile. 
+          Il est destiné à être présenté à un professionnel de santé (médecin généraliste ou cardiologue) lors de vos consultations. 
+          L'auto-mesure permet de donner un aperçu plus fidèle de votre tension au quotidien qu'une mesure unique en cabinet.
+        </div>
+      </body>
+      </html>
+    `);
+    doc.close();
+
+    // Lancer le focus et l'impression sur l'iframe
+    iframe.contentWindow.focus();
+    setTimeout(() => {
+      iframe.contentWindow.print();
+      // Retirer l'iframe
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+        showToast('Rapport PDF généré !', 'success');
+      }, 1000);
+    }, 500);
   };
 
   const handleImportFile = (e) => {
@@ -101,23 +474,125 @@ export default function ExportImport({
           <Download size={20} style={{ color: 'var(--primary)' }} />
           Exporter vos données
         </h2>
-        <div className="settings-card">
-          <div className="settings-info">
-            <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>Sauvegarde et Partage Médical</h3>
-            <p className="settings-desc">
-              Téléchargez vos données pour les conserver en lieu sûr ou pour les envoyer directement à votre médecin.
-            </p>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          
+          {/* Format Fichier */}
+          <div className="settings-card">
+            <div className="settings-info">
+              <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>Formats bruts de sauvegarde</h3>
+              <p className="settings-desc">
+                Téléchargez vos fichiers bruts pour archivage local ou pour les importer ultérieurement dans cette application.
+              </p>
+            </div>
+            <div className="actions-row">
+              <button className="btn btn-primary" onClick={handleExportJSON}>
+                <FileJson size={18} />
+                Sauvegarde complète (JSON)
+              </button>
+              <button className="btn btn-secondary" onClick={handleExportCSV}>
+                <FileSpreadsheet size={18} />
+                Feuille de calcul (CSV pour Excel)
+              </button>
+            </div>
           </div>
-          <div className="actions-row">
-            <button className="btn btn-primary" onClick={handleExportJSON}>
-              <FileJson size={18} />
-              Exporter au format JSON (Sauvegarde complète)
-            </button>
-            <button className="btn btn-secondary" onClick={handleExportCSV}>
-              <FileSpreadsheet size={18} />
-              Exporter au format CSV (Excel / Sheets)
-            </button>
+
+          {/* Exportation PDF Clinique */}
+          <div className="settings-card" style={{ borderLeft: '3px solid var(--accent)' }}>
+            <div className="settings-info">
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Printer size={18} style={{ color: 'var(--accent)' }} />
+                Rapport médical (PDF)
+              </h3>
+              <p className="settings-desc">
+                Générez un rapport clinique formaté, clair et optimisé pour l'impression, idéal à remettre à votre médecin traitant.
+              </p>
+            </div>
+
+            {/* Formulaire Options Période */}
+            <div style={{ marginTop: '1.25rem', background: 'rgba(10, 15, 29, 0.4)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(255,255,255,0.03)' }}>
+              
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label className="form-label">Sélectionner la période du rapport :</label>
+                
+                {/* Sélecteur de période */}
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
+                    <input 
+                      type="radio" 
+                      name="pdf-period" 
+                      value="7" 
+                      checked={pdfPeriod === '7'}
+                      onChange={() => setPdfPeriod('7')}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    7 derniers jours
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
+                    <input 
+                      type="radio" 
+                      name="pdf-period" 
+                      value="30" 
+                      checked={pdfPeriod === '30'}
+                      onChange={() => setPdfPeriod('30')}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    30 derniers jours (1 mois)
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
+                    <input 
+                      type="radio" 
+                      name="pdf-period" 
+                      value="custom" 
+                      checked={pdfPeriod === 'custom'}
+                      onChange={() => setPdfPeriod('custom')}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    Dates personnalisées
+                  </label>
+                </div>
+              </div>
+
+              {/* Plage personnalisée */}
+              {pdfPeriod === 'custom' && (
+                <div className="form-group-row" style={{ animation: 'slideDown 0.25s ease', marginBottom: '1rem' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" htmlFor="pdf-start-date">Date de début</label>
+                    <input 
+                      id="pdf-start-date"
+                      type="date" 
+                      className="form-input" 
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" htmlFor="pdf-end-date">Date de fin</label>
+                    <input 
+                      id="pdf-end-date"
+                      type="date" 
+                      className="form-input" 
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
+              <button 
+                className="btn btn-primary" 
+                style={{ width: '100%', marginTop: '0.5rem', background: 'linear-gradient(135deg, var(--accent), var(--primary))', boxShadow: '0 4px 15px rgba(6, 182, 212, 0.25)' }}
+                onClick={handleExportPDF}
+              >
+                <Printer size={18} />
+                Générer et Imprimer le Rapport PDF
+              </button>
+            </div>
+
           </div>
+
         </div>
       </div>
 
