@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sun, CloudSun, Moon, ChevronLeft, ChevronRight, Calendar, Heart, Plus, Edit2, Info } from 'lucide-react';
+import { Sun, CloudSun, Moon, ChevronLeft, ChevronRight, Calendar, Heart, Plus, Edit2, Info, Activity } from 'lucide-react';
 import { getBPStatus, getTodayDateStr } from '../hooks/useTensionData';
 
 export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
