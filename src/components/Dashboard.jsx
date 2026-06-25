@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { Sun, CloudSun, Moon, ChevronLeft, ChevronRight, Calendar, Heart, Plus, Edit2, Info } from 'lucide-react';
+import { Sun, CloudSun, Moon, ChevronLeft, ChevronRight, Calendar, Heart, Plus, Edit2, Info, Activity } from 'lucide-react';
 import { getBPStatus, getTodayDateStr } from '../hooks/useTensionData';
 
 export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
   const [selectedDate, setSelectedDate] = useState(getTodayDateStr());
 
   // Obtenir les données du jour sélectionné
-  const dayData = data[selectedDate] || {
+  const rawDayData = data[selectedDate];
+  const dayData = {
     date: selectedDate,
     slots: { 
       matin_gauche: null, matin_droit: null,
@@ -14,6 +15,13 @@ export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
       soir_gauche: null, soir_droit: null
     },
     avg: null,
+    ...rawDayData,
+    slots: {
+      matin_gauche: null, matin_droit: null,
+      midi_gauche: null, midi_droit: null,
+      soir_gauche: null, soir_droit: null,
+      ...(rawDayData?.slots || {})
+    }
   };
 
   // Nombre de mesures terminées aujourd'hui (sur 6 possibles)
@@ -121,7 +129,7 @@ export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
   };
 
   // Rendu d'une sous-mesure (bras gauche ou droit) pour un moment donné
-  const renderSubSlotRow = (momentKey, armKey, label, icon, dotColor) => {
+  const renderSubSlotRow = (momentKey, armKey, label, icon) => {
     const slotKey = `${momentKey}_${armKey}`;
     const slotData = dayData.slots[slotKey];
 
@@ -139,7 +147,7 @@ export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
           transition: 'var(--transition)'
         }}
         className="slot-card"
-        onClick={() => onAddClick(selectedDate, slotKey, slotData)}
+        onClick={() => onAddClick(selectedDate, momentKey)}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <span style={{ fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -164,19 +172,6 @@ export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
                   💓 {slotData.pulse} <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>bpm</span>
                 </span>
               </div>
-              {slotData.note && (
-                <div 
-                  title={slotData.note} 
-                  style={{ 
-                    width: '6px', 
-                    height: '6px', 
-                    borderRadius: '50%', 
-                    backgroundColor: 'var(--accent)',
-                    boxShadow: '0 0 8px var(--accent)'
-                  }} 
-                  title={`Note : ${slotData.note}`}
-                />
-              )}
               <button className="btn-icon edit" style={{ padding: '0.2rem' }} aria-label="Modifier">
                 <Edit2 size={14} />
               </button>
@@ -186,7 +181,7 @@ export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
               className="btn-add-inline"
               onClick={(e) => {
                 e.stopPropagation();
-                onAddClick(selectedDate, slotKey, null);
+                onAddClick(selectedDate, momentKey);
               }}
             >
               <Plus size={12} style={{ marginRight: '3px', verticalAlign: 'middle' }} />
@@ -265,7 +260,7 @@ export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', paddingLeft: '0.5rem' }}>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Heart size={20} style={{ color: 'var(--primary)' }} />
+              <Activity size={20} style={{ color: 'var(--primary)' }} />
               Mesures de la Journée
             </h3>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>
@@ -283,8 +278,8 @@ export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                  {renderSubSlotRow(moment.key, 'gauche', 'Bras Gauche', '👈', 'var(--primary)')}
-                  {renderSubSlotRow(moment.key, 'droit', 'Bras Droit', '👉', 'var(--accent)')}
+                  {renderSubSlotRow(moment.key, 'gauche', 'Bras Gauche', '👈')}
+                  {renderSubSlotRow(moment.key, 'droit', 'Bras Droit', '👉')}
                 </div>
               </div>
             ))}

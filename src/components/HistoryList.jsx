@@ -22,22 +22,18 @@ export default function HistoryList({ data, onDelete, onEditClick }) {
   const filteredDates = sortedDates.filter((dateStr) => {
     const day = data[dateStr];
     
-    // Filtre recherche (recherche dans les notes de n'importe quel créneau ou dans la date)
+    // Filtre recherche par date
     const formattedDate = dateStr.split('-').reverse().join('/');
-    const matchesSearch = 
-      formattedDate.includes(search) || 
-      Object.values(day.slots).some(
-        (slot) => slot && slot.note && slot.note.toLowerCase().includes(search.toLowerCase())
-      );
+    const matchesSearch = formattedDate.includes(search);
 
-    // Filtre statut de la moyenne journalière
+    // Filtre statut de la moyenne journalière globale
     let matchesStatus = true;
     if (statusFilter !== 'all' && day.avg) {
       const avgVal = day.avg.global || day.avg;
       const bpStatus = getBPStatus(avgVal.sys, avgVal.dia);
       matchesStatus = bpStatus && bpStatus.class === statusFilter;
     } else if (statusFilter !== 'all' && !day.avg) {
-      matchesStatus = false; // Exclure si pas de moyenne calculée
+      matchesStatus = false;
     }
 
     return matchesSearch && matchesStatus;
@@ -53,7 +49,7 @@ export default function HistoryList({ data, onDelete, onEditClick }) {
     });
   };
 
-  const slotLabels = {
+  const momentLabels = {
     matin: '☀️ Matin',
     midi: '🌤️ Midi',
     soir: '🌙 Soir',
@@ -80,7 +76,7 @@ export default function HistoryList({ data, onDelete, onEditClick }) {
           />
           <input
             type="text"
-            placeholder="Rechercher une note ou date..."
+            placeholder="Rechercher par date (JJ/MM)..."
             className="history-search"
             style={{ paddingLeft: '2.25rem' }}
             value={search}
@@ -170,71 +166,72 @@ export default function HistoryList({ data, onDelete, onEditClick }) {
                   </div>
                 </div>
 
-                {/* Détails du jour (créneaux) */}
+                {/* Détails du jour (créneaux à 6 slots) */}
                 {isExpanded && (
                   <div className="history-day-details">
-                    {['matin', 'midi', 'soir'].map((slotKey) => {
-                      const slot = day.slots[slotKey];
-                      return (
-                        <div key={slotKey} className="details-slot-row">
-                          <div className="details-slot-meta">
-                            <span className="details-slot-label">
-                              {slotLabels[slotKey].split(' ')[0]} {slotLabels[slotKey].split(' ')[1]}
-                            </span>
+                    {['matin', 'midi', 'soir'].map((momentKey) => {
+                      return ['gauche', 'droit'].map((armKey) => {
+                        const slotKey = `${momentKey}_${armKey}`;
+                        const slot = day.slots[slotKey];
+                        const armIcon = armKey === 'gauche' ? '👈 G' : 'D 👉';
+
+                        return (
+                          <div key={slotKey} className="details-slot-row">
+                            <div className="details-slot-meta">
+                              <span className="details-slot-label" style={{ width: '100px' }}>
+                                {momentLabels[momentKey]} ({armIcon})
+                              </span>
+                              {slot ? (
+                                <span className="details-slot-time">à {slot.time}</span>
+                              ) : (
+                                <span className="details-slot-time" style={{ fontStyle: 'italic' }}>Non renseigné</span>
+                              )}
+                            </div>
+
                             {slot ? (
-                              <span className="details-slot-time">Prise à {slot.time}</span>
+                              <>
+                                <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+                                  <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>
+                                    {slot.sys}/{slot.dia} <span style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-muted)' }}>mmHg</span>
+                                  </span>
+                                  <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                                    💓 {slot.pulse} bpm
+                                  </span>
+                                </div>
+                                <div className="details-slot-actions">
+                                  <button 
+                                    className="btn-icon edit" 
+                                    onClick={() => onEditClick(dateStr, momentKey)}
+                                    title="Modifier ce moment de la journée"
+                                  >
+                                    <Edit2 size={15} />
+                                  </button>
+                                  <button 
+                                    className="btn-icon delete" 
+                                    onClick={() => {
+                                      if (confirm('Voulez-vous vraiment supprimer cette mesure ?')) {
+                                        onDelete(dateStr, slotKey);
+                                      }
+                                    }}
+                                    title="Supprimer cette mesure"
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                </div>
+                              </>
                             ) : (
-                              <span className="details-slot-time" style={{ fontStyle: 'italic' }}>Non renseigné</span>
+                              <div style={{ display: 'flex', justifyContent: 'flex-end', flex: 1 }}>
+                                <button 
+                                  className="btn-add-inline"
+                                  onClick={() => onEditClick(dateStr, momentKey)}
+                                >
+                                  Saisir
+                                </button>
+                              </div>
                             )}
                           </div>
-
-                          {slot ? (
-                            <>
-                              <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
-                                <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>
-                                  {slot.sys}/{slot.dia} <span style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-muted)' }}>mmHg</span>
-                                </span>
-                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                                  💓 {slot.pulse} bpm • {slot.arm === 'droit' ? 'Bras droit 👉' : '👈 Bras gauche'}
-                                </span>
-                              </div>
-                              <span className="details-slot-notes" title={slot.note}>
-                                {slot.note || ''}
-                              </span>
-                              <div className="details-slot-actions">
-                                <button 
-                                  className="btn-icon edit" 
-                                  onClick={() => onEditClick(dateStr, slotKey, slot)}
-                                  title="Modifier cette mesure"
-                                >
-                                  <Edit2 size={15} />
-                                </button>
-                                <button 
-                                  className="btn-icon delete" 
-                                  onClick={() => {
-                                    if (confirm('Voulez-vous vraiment supprimer cette mesure ?')) {
-                                      onDelete(dateStr, slotKey);
-                                    }
-                                  }}
-                                  title="Supprimer cette mesure"
-                                >
-                                  <Trash2 size={15} />
-                                </button>
-                              </div>
-                            </>
-                          ) : (
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', flex: 1 }}>
-                              <button 
-                                className="btn-add-inline"
-                                onClick={() => onEditClick(dateStr, slotKey, null)}
-                              >
-                                <Plus size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                                Saisir
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      );
+                        );
+                      });
                     })}
                   </div>
                 )}

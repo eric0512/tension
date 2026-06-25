@@ -107,32 +107,19 @@ const calculateDailyAverage = (slots) => {
 const STORAGE_KEY = 'suivi_tension_data';
 
 export const useTensionData = () => {
-  // Structure de données de l'état :
-  // {
-  //   '2026-06-25': {
-  //     date: '2026-06-25',
-  //     slots: {
-  //       matin_gauche: { sys: 120, dia: 80, pulse: 70, arm: 'gauche', time: '08:30', note: '' } | null,
-  //       matin_droit: null,
-  //       ...
-  //     },
-  //     avg: {
-  //       gauche: { sys: 120, dia: 80, pulse: 70 },
-  //       droit: null,
-  //       global: { sys: 120, dia: 80, pulse: 70 }
-  //     }
-  //   }
-  // }
   const [data, setData] = useState(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
       if (!stored) return {};
       
       const parsed = JSON.parse(stored);
-      // Migration des anciennes données vers le format à 6 slots
+      // Migration des anciennes données vers le format à 6 slots sans notes
       Object.keys(parsed).forEach((dateStr) => {
         const day = parsed[dateStr];
-        if (day.slots) {
+        if (day && typeof day === 'object') {
+          if (!day.slots || typeof day.slots !== 'object') {
+            day.slots = {};
+          }
           const newSlots = {
             matin_gauche: null, matin_droit: null,
             midi_gauche: null, midi_droit: null,
@@ -145,7 +132,13 @@ export const useTensionData = () => {
               const oldSlot = day.slots[k];
               if (oldSlot) {
                 const arm = oldSlot.arm || 'gauche';
-                newSlots[`${k}_${arm}`] = oldSlot;
+                newSlots[`${k}_${arm}`] = {
+                  sys: oldSlot.sys,
+                  dia: oldSlot.dia,
+                  pulse: oldSlot.pulse,
+                  arm: arm,
+                  time: oldSlot.time || '12:00'
+                };
               }
               delete day.slots[k];
             }
@@ -155,7 +148,14 @@ export const useTensionData = () => {
           const newKeys = ['matin_gauche', 'matin_droit', 'midi_gauche', 'midi_droit', 'soir_gauche', 'soir_droit'];
           newKeys.forEach(nk => {
             if (day.slots[nk] !== undefined) {
-              newSlots[nk] = day.slots[nk];
+              const currentSlot = day.slots[nk];
+              newSlots[nk] = currentSlot ? {
+                sys: currentSlot.sys,
+                dia: currentSlot.dia,
+                pulse: currentSlot.pulse,
+                arm: currentSlot.arm || (nk.endsWith('_droit') ? 'droit' : 'gauche'),
+                time: currentSlot.time || '12:00'
+              } : null;
             }
           });
 
@@ -172,11 +172,17 @@ export const useTensionData = () => {
 
   // Sauvegarder dans localStorage dès que l'état change
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      }
+    } catch (e) {
+      console.error('Erreur lors de l\'enregistrement dans localStorage', e);
+    }
   }, [data]);
 
-  // Enregistrer ou modifier une mesure
-  const saveMeasurement = (dateStr, slotKey, measurement) => {
+  // Enregistrer ou modifier les deux mesures d'un moment (Matin, Midi, Soir)
+  const saveMoment = (dateStr, momentKey, leftMeasurement, rightMeasurement, time) => {
     setData((prev) => {
       const dayData = prev[dateStr] || {
         date: dateStr,
@@ -187,16 +193,26 @@ export const useTensionData = () => {
         },
       };
 
+      const timeStr = time || getCurrentTimeStr();
+
       const updatedSlots = {
         ...dayData.slots,
-        [slotKey]: measurement
+        [`${momentKey}_gauche`]: leftMeasurement
           ? {
-              sys: parseInt(measurement.sys, 10),
-              dia: parseInt(measurement.dia, 10),
-              pulse: parseInt(measurement.pulse, 10),
-              arm: measurement.arm || (slotKey.endsWith('_droit') ? 'droit' : 'gauche'),
-              time: measurement.time || getCurrentTimeStr(),
-              note: measurement.note || '',
+              sys: parseInt(leftMeasurement.sys, 10),
+              dia: parseInt(leftMeasurement.dia, 10),
+              pulse: parseInt(leftMeasurement.pulse, 10),
+              arm: 'gauche',
+              time: timeStr,
+            }
+          : null,
+        [`${momentKey}_droit`]: rightMeasurement
+          ? {
+              sys: parseInt(rightMeasurement.sys, 10),
+              dia: parseInt(rightMeasurement.dia, 10),
+              pulse: parseInt(rightMeasurement.pulse, 10),
+              arm: 'droit',
+              time: timeStr,
             }
           : null,
       };
@@ -220,9 +236,33 @@ export const useTensionData = () => {
     });
   };
 
-  // Supprimer une mesure
+  // Supprimer une mesure spécifique d'un bras
   const deleteMeasurement = (dateStr, slotKey) => {
-    saveMeasurement(dateStr, slotKey, null);
+    setData((prev) => {
+      if (!prev[dateStr]) return prev;
+      
+      const updatedSlots = {
+        ...prev[dateStr].slots,
+        [slotKey]: null
+      };
+
+      const updatedAvg = calculateDailyAverage(updatedSlots);
+
+      const nextData = { ...prev };
+      const hasAnyReading = Object.values(updatedSlots).some(Boolean);
+      
+      if (!hasAnyReading) {
+        delete nextData[dateStr];
+      } else {
+        nextData[dateStr] = {
+          ...prev[dateStr],
+          slots: updatedSlots,
+          avg: updatedAvg,
+        };
+      }
+
+      return nextData;
+    });
   };
 
   // Exporter les données au format JSON string
@@ -232,7 +272,7 @@ export const useTensionData = () => {
 
   // Exporter au format CSV
   const exportDataCSV = () => {
-    const headers = ['Date', 'Créneau', 'Systolique (mmHg)', 'Diastolique (mmHg)', 'Pouls (bpm)', 'Bras', 'Heure', 'Note', 'Moyenne Globale Systolique', 'Moyenne Globale Diastolique', 'Moyenne Globale Pouls'];
+    const headers = ['Date', 'Créneau', 'Systolique (mmHg)', 'Diastolique (mmHg)', 'Pouls (bpm)', 'Bras', 'Heure', 'Moyenne Globale Systolique', 'Moyenne Globale Diastolique', 'Moyenne Globale Pouls'];
     const rows = [headers];
 
     // Trier les dates par ordre décroissant
@@ -254,7 +294,6 @@ export const useTensionData = () => {
             slot.pulse,
             slot.arm.toUpperCase(),
             slot.time,
-            `"${slot.note.replace(/"/g, '""')}"`,
             day.avg?.global?.sys || '',
             day.avg?.global?.dia || '',
             day.avg?.global?.pulse || ''
@@ -306,8 +345,7 @@ export const useTensionData = () => {
                 dia: parseInt(s.dia, 10),
                 pulse: parseInt(s.pulse, 10),
                 arm,
-                time: s.time || '12:00',
-                note: s.note || '',
+                time: s.time || '12:00'
               };
             }
           });
@@ -340,12 +378,18 @@ export const useTensionData = () => {
   // Effacer toutes les données
   const clearAllData = () => {
     setData({});
-    localStorage.removeItem(STORAGE_KEY);
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch (e) {
+      console.error('Erreur lors de la suppression de localStorage', e);
+    }
   };
 
   return {
     data,
-    saveMeasurement,
+    saveMoment,
     deleteMeasurement,
     exportDataJSON,
     exportDataCSV,

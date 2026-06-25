@@ -163,25 +163,27 @@ export default function ExportImport({
     let tableRowsHtml = '';
     filteredDays.forEach((day) => {
       const dateDisplay = formatDateFR(day.date);
-      ['matin', 'midi', 'soir'].forEach((slotKey) => {
-        const slot = day.slots[slotKey];
-        if (slot) {
-          const status = getBPStatus(slot.sys, slot.dia);
-          const statusColor = status ? `var(--bp-${status.class.split('-')[1]})` : '#0f172a';
-          const slotLabel = slotKey === 'matin' ? 'Matin' : slotKey === 'midi' ? 'Midi' : 'Soir';
-          const armLabel = slot.arm === 'droit' ? 'Bras droit 👉' : '👈 Bras gauche';
+      ['matin', 'midi', 'soir'].forEach((momentKey) => {
+        ['gauche', 'droit'].forEach((armKey) => {
+          const slotKey = `${momentKey}_${armKey}`;
+          const slot = day.slots[slotKey];
+          if (slot) {
+            const status = getBPStatus(slot.sys, slot.dia);
+            const statusColor = status ? `var(--bp-${status.class.split('-')[1]})` : '#0f172a';
+            const slotLabel = momentKey === 'matin' ? 'Matin' : momentKey === 'midi' ? 'Midi' : 'Soir';
+            const armLabel = armKey === 'droit' ? 'Bras droit 👉' : '👈 Bras gauche';
 
-          tableRowsHtml += `
-            <tr>
-              <td><strong>${dateDisplay}</strong></td>
-              <td>${slotLabel}</td>
-              <td style="font-weight: bold; color: ${statusColor};">${slot.sys}/${slot.dia} <span style="font-size: 9px; font-weight: normal; color: #64748b;">mmHg</span></td>
-              <td>💓 ${slot.pulse} <span style="font-size: 9px; color: #64748b;">bpm</span></td>
-              <td>${armLabel}</td>
-              <td style="font-style: italic; color: #475569; font-size: 11px;">${slot.note || ''}</td>
-            </tr>
-          `;
-        }
+            tableRowsHtml += `
+              <tr>
+                <td><strong>${dateDisplay}</strong></td>
+                <td>${slotLabel}</td>
+                <td style="font-weight: bold; color: ${statusColor};">${slot.sys}/${slot.dia} <span style="font-size: 9px; font-weight: normal; color: #64748b;">mmHg</span></td>
+                <td>💓 ${slot.pulse} <span style="font-size: 9px; color: #64748b;">bpm</span></td>
+                <td>${armLabel}</td>
+              </tr>
+            `;
+          }
+        });
       });
     });
 
@@ -418,12 +420,11 @@ export default function ExportImport({
         <table>
           <thead>
             <tr>
-              <th style="width: 18%">Date</th>
-              <th style="width: 12%">Créneau</th>
-              <th style="width: 25%">Mesure Tensionnelle</th>
-              <th style="width: 18%">Pouls (Cardiaque)</th>
+              <th style="width: 22%">Date</th>
+              <th style="width: 18%">Créneau</th>
+              <th style="width: 30%">Mesure Tensionnelle</th>
+              <th style="width: 15%">Pouls (Cardiaque)</th>
               <th style="width: 15%">Côté</th>
-              <th style="width: 12%">Notes & Symptômes</th>
             </tr>
           </thead>
           <tbody>

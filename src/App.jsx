@@ -11,7 +11,7 @@ import {
   Plus
 } from 'lucide-react';
 
-import { useTensionData } from './hooks/useTensionData';
+import { useTensionData, getTodayDateStr } from './hooks/useTensionData';
 import Dashboard from './components/Dashboard';
 import TrendChart from './components/TrendChart';
 import HistoryList from './components/HistoryList';
@@ -24,11 +24,11 @@ export default function App() {
   
   // États de la Modal de saisie
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalConfig, setModalConfig] = useState(null); // { date, slot, sys, dia, pulse, time, note, isEditMode }
+  const [modalConfig, setModalConfig] = useState(null); // { date, slot, leftData, rightData, time, isEditMode }
 
   const {
     data,
-    saveMeasurement,
+    saveMoment,
     deleteMeasurement,
     exportDataJSON,
     exportDataCSV,
@@ -50,24 +50,27 @@ export default function App() {
     }
   }, [toast]);
 
-  // Ouvrir la modal en mode création ou édition
-  const handleOpenModal = (dateStr, slotKey, initialData = null) => {
+  // Ouvrir la modal en mode création ou édition pour un moment de la journée (matin, midi, soir)
+  const handleOpenModal = (dateStr, momentKey, initialData = null) => {
+    const day = data[dateStr];
+    const leftData = day?.slots[`${momentKey}_gauche`] || null;
+    const rightData = day?.slots[`${momentKey}_droit`] || null;
+    const time = leftData?.time || rightData?.time || '';
+
     setModalConfig({
       date: dateStr,
-      slot: slotKey,
-      sys: initialData?.sys || '',
-      dia: initialData?.dia || '',
-      pulse: initialData?.pulse || '',
-      time: initialData?.time || '',
-      note: initialData?.note || '',
-      isEditMode: !!initialData,
+      slot: momentKey,
+      leftData,
+      rightData,
+      time,
+      isEditMode: !!(leftData || rightData),
     });
     setIsModalOpen(true);
   };
 
-  // Enregistrer depuis la modal
-  const handleSaveFromModal = (dateStr, slotKey, values) => {
-    saveMeasurement(dateStr, slotKey, values);
+  // Enregistrer les mesures depuis la modal
+  const handleSaveFromModal = (dateStr, momentKey, leftValues, rightValues, time) => {
+    saveMoment(dateStr, momentKey, leftValues, rightValues, time);
     showToast(
       modalConfig?.isEditMode 
         ? 'Mesure modifiée avec succès !' 
@@ -141,7 +144,7 @@ export default function App() {
         {activeTab === 'dashboard' && (
           <Dashboard 
             data={data} 
-            onSaveMeasurement={saveMeasurement} 
+            onSaveMeasurement={saveMoment} 
             onAddClick={handleOpenModal} 
           />
         )}
@@ -190,7 +193,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Bouton d'action flottant pour mobile (Ajout rapide de mesure pour aujourd'hui) */}
+      {/* Bouton d'action flottant pour mobile (Ajout rapide de mesure pour aujourd'hui avec suggestion intelligente) */}
       <button 
         style={{
           position: 'fixed',
@@ -211,15 +214,27 @@ export default function App() {
           transition: 'all 0.2s'
         }}
         onClick={() => {
-          const d = new Date();
-          const hour = d.getHours();
-          let suggestedSlot = 'matin';
-          if (hour >= 11 && hour < 17) suggestedSlot = 'midi';
-          else if (hour >= 17) suggestedSlot = 'soir';
+          const todayStr = getTodayDateStr();
+          const todaySlots = data[todayStr]?.slots || {};
           
-          const todayStr = new Date().toISOString().split('T')[0];
-          const existingSlotData = data[todayStr]?.slots[suggestedSlot] || null;
-          handleOpenModal(todayStr, suggestedSlot, existingSlotData);
+          // Déterminer la suggestion intelligente
+          const matinFait = !!(todaySlots.matin_gauche || todaySlots.matin_droit);
+          const midiFait = !!(todaySlots.midi_gauche || todaySlots.midi_droit);
+          const soirFait = !!(todaySlots.soir_gauche || todaySlots.soir_droit);
+
+          let suggestedSlot = 'matin';
+          if (matinFait && !midiFait) {
+            suggestedSlot = 'midi';
+          } else if (matinFait && midiFait && !soirFait) {
+            suggestedSlot = 'soir';
+          } else {
+            // Par défaut basé sur l'heure actuelle
+            const hour = new Date().getHours();
+            if (hour >= 11 && hour < 17) suggestedSlot = 'midi';
+            else if (hour >= 17) suggestedSlot = 'soir';
+          }
+          
+          handleOpenModal(todayStr, suggestedSlot);
         }}
         title="Ajouter une mesure pour aujourd'hui"
       >
