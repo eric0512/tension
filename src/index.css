@@ -1093,8 +1093,24 @@ a {
   }
 
   .summary-row {
-    grid-template-columns: 1fr;
-    gap: 1rem;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+
+  .summary-item {
+    padding: 0.6rem 0.3rem !important;
+  }
+
+  .summary-label {
+    font-size: 0.65rem !important;
+  }
+
+  .summary-value {
+    font-size: 1.15rem !important;
+  }
+
+  .summary-value span {
+    font-size: 0.6rem !important;
   }
 
   .brand h1 {
