@@ -200,7 +200,7 @@ export default function Dashboard({ data, onSaveMeasurement, onAddClick }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
         
         {/* Sélecteur de date */}
-        <div className="glass-card" style={{ padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="glass-card date-selector-card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <button className="btn-icon" onClick={() => changeDate(-1)} title="Jour précédent">
               <ChevronLeft size={20} />

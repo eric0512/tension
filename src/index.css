@@ -1047,3 +1047,73 @@ a {
   margin-top: auto;
   border-top: 1px solid rgba(255, 255, 255, 0.03);
 }
+
+/* --- Mobile Responsive Fixes --- */
+@media (max-width: 768px) {
+  .app-container {
+    padding: 1rem 0.5rem;
+    gap: 1.5rem;
+  }
+  
+  .app-header {
+    flex-direction: column;
+    padding: 1.25rem 1rem;
+    gap: 1.25rem;
+  }
+  
+  .nav-tabs {
+    width: 100%;
+    overflow-x: auto;
+    justify-content: flex-start;
+  }
+  
+  .nav-tab {
+    padding: 0.6rem 0.8rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+
+  .nav-tab span {
+    display: none; /* Cache le texte sur mobile pour gagner de la place */
+  }
+  
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .date-selector-card {
+    flex-direction: column;
+    gap: 1.25rem;
+    padding: 1rem;
+    align-items: stretch;
+  }
+
+  .date-selector-card > div {
+    justify-content: center;
+  }
+
+  .summary-row {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .brand h1 {
+    font-size: 1.25rem;
+  }
+
+  .chart-svg {
+    height: 250px;
+  }
+
+  /* Affichage vertical pour l'export en mode mobile */
+  .settings-card .actions-row {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
