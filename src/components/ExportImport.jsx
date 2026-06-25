@@ -163,28 +163,46 @@ export default function ExportImport({
     let tableRowsHtml = '';
     filteredDays.forEach((day) => {
       const dateDisplay = formatDateFR(day.date);
+      let dayHasData = false;
+      
       ['matin', 'midi', 'soir'].forEach((momentKey) => {
-        ['gauche', 'droit'].forEach((armKey) => {
-          const slotKey = `${momentKey}_${armKey}`;
-          const slot = day.slots[slotKey];
-          if (slot) {
-            const status = getBPStatus(slot.sys, slot.dia);
-            const statusColor = status ? `var(--bp-${status.class.split('-')[1]})` : '#0f172a';
-            const slotLabel = momentKey === 'matin' ? 'Matin' : momentKey === 'midi' ? 'Midi' : 'Soir';
-            const armLabel = armKey === 'droit' ? 'Bras droit 👉' : '👈 Bras gauche';
+        const slotG = day.slots[`${momentKey}_gauche`];
+        const slotD = day.slots[`${momentKey}_droit`];
+        
+        if (slotG || slotD) {
+          dayHasData = true;
+          const slotLabel = momentKey === 'matin' ? 'Matin' : momentKey === 'midi' ? 'Midi' : 'Soir';
+          const timeStr = slotG?.time || slotD?.time || '';
+          
+          const textG = slotG ? `<strong style="font-size: 14px;">${slotG.sys}/${slotG.dia}</strong> <span style="font-size:10px;color:#64748b">(${slotG.pulse} bpm)</span>` : '<span style="color:#cbd5e1">-</span>';
+          const textD = slotD ? `<strong style="font-size: 14px;">${slotD.sys}/${slotD.dia}</strong> <span style="font-size:10px;color:#64748b">(${slotD.pulse} bpm)</span>` : '<span style="color:#cbd5e1">-</span>';
 
-            tableRowsHtml += `
-              <tr>
-                <td><strong>${dateDisplay}</strong></td>
-                <td>${slotLabel}</td>
-                <td style="font-weight: bold; color: ${statusColor};">${slot.sys}/${slot.dia} <span style="font-size: 9px; font-weight: normal; color: #64748b;">mmHg</span></td>
-                <td>💓 ${slot.pulse} <span style="font-size: 9px; color: #64748b;">bpm</span></td>
-                <td>${armLabel}</td>
-              </tr>
-            `;
-          }
-        });
+          tableRowsHtml += `
+            <tr>
+              <td><strong>${dateDisplay}</strong> - ${slotLabel} ${timeStr ? `<span style="color:#475569">(${timeStr})</span>` : ''}</td>
+              <td>${textG}</td>
+              <td>${textD}</td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+          `;
+        }
       });
+
+      // Ligne de moyenne de la journée dans 3 cellules (Sys, Dia, Pouls)
+      if (dayHasData && day.avg && day.avg.global) {
+        tableRowsHtml += `
+          <tr style="background-color: #f8fafc; border-bottom: 2px solid #94a3b8;">
+            <td colspan="3" style="text-align: right; padding-right: 15px; font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.05em;">
+              <strong>Moyenne du ${dateDisplay} :</strong>
+            </td>
+            <td style="font-weight: 800; color: var(--primary); font-size: 14px;">${day.avg.global.sys} <span style="font-size:9px; font-weight:normal; color:#64748b">mmHg</span></td>
+            <td style="font-weight: 800; color: var(--primary); font-size: 14px;">${day.avg.global.dia} <span style="font-size:9px; font-weight:normal; color:#64748b">mmHg</span></td>
+            <td style="font-weight: 800; font-size: 14px;">${day.avg.global.pulse} <span style="font-size:9px; font-weight:normal; color:#64748b">bpm</span></td>
+          </tr>
+        `;
+      }
     });
 
     // Écriture du contenu dans l'iframe
@@ -205,12 +223,6 @@ export default function ExportImport({
             --text-secondary: #475569;
             --border-color: #cbd5e1;
             --bg-light: #f8fafc;
-            
-            --bp-normal: #10b981;
-            --bp-elevated: #d97706;
-            --bp-stage1: #ea580c;
-            --bp-stage2: #ef4444;
-            --bp-crisis: #b91c1c;
           }
           
           * { box-sizing: border-box; }
@@ -220,7 +232,7 @@ export default function ExportImport({
             color: var(--text-primary);
             margin: 0;
             padding: 20px;
-            font-size: 13px;
+            font-size: 12px;
             line-height: 1.4;
             background-color: white;
           }
@@ -228,24 +240,18 @@ export default function ExportImport({
           .header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-end;
             border-bottom: 2px solid var(--primary);
             padding-bottom: 12px;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
           }
           
           .title-area h1 {
             margin: 0;
-            font-size: 24px;
+            font-size: 22px;
             font-weight: 800;
             color: var(--primary);
             letter-spacing: -0.02em;
-          }
-          
-          .title-area p {
-            margin: 3px 0 0 0;
-            color: var(--text-secondary);
-            font-size: 12px;
           }
           
           .meta-area {
@@ -254,78 +260,6 @@ export default function ExportImport({
             color: var(--text-secondary);
           }
           
-          .meta-area h2 {
-            margin: 0 0 4px 0;
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--text-primary);
-          }
-          
-          .summary-row {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 15px;
-            margin-bottom: 25px;
-          }
-          
-          .summary-card {
-            background-color: var(--bg-light);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 15px;
-            text-align: left;
-          }
-          
-          .summary-card.left-arm {
-            border-top: 4px solid var(--primary);
-          }
-          
-          .summary-card.right-arm {
-            border-top: 4px solid var(--accent);
-          }
-          
-          .summary-label {
-            font-size: 11px;
-            text-transform: uppercase;
-            font-weight: 700;
-            color: var(--text-secondary);
-            margin-bottom: 8px;
-            letter-spacing: 0.05em;
-          }
-          
-          .summary-stats-box {
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            margin-bottom: 6px;
-          }
-          
-          .summary-value {
-            font-size: 22px;
-            font-weight: 800;
-          }
-          
-          .summary-value span {
-            font-size: 11px;
-            font-weight: 400;
-            color: #64748b;
-          }
-          
-          .status-badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 20px;
-            font-size: 10px;
-            font-weight: 700;
-            text-align: center;
-          }
-          
-          .status-normal { background-color: rgba(16, 185, 129, 0.12); color: var(--bp-normal); }
-          .status-elevated { background-color: rgba(217, 119, 6, 0.12); color: var(--bp-elevated); }
-          .status-stage1 { background-color: rgba(234, 88, 12, 0.12); color: var(--bp-stage1); }
-          .status-stage2 { background-color: rgba(239, 68, 68, 0.12); color: var(--bp-stage2); }
-          .status-crisis { background-color: rgba(185, 28, 28, 0.15); color: var(--bp-crisis); }
-          
           table {
             width: 100%;
             border-collapse: collapse;
@@ -333,7 +267,7 @@ export default function ExportImport({
           }
           
           th, td {
-            padding: 8px 12px;
+            padding: 10px 12px;
             text-align: left;
             border-bottom: 1px solid var(--border-color);
           }
@@ -341,14 +275,14 @@ export default function ExportImport({
           th {
             background-color: #f1f5f9;
             color: var(--text-secondary);
-            font-weight: 600;
+            font-weight: 700;
             font-size: 10px;
             text-transform: uppercase;
             letter-spacing: 0.05em;
           }
           
           tr:nth-child(even) td {
-            background-color: var(--bg-light);
+            background-color: rgba(248, 250, 252, 0.5);
           }
           
           .disclaimer {
@@ -370,61 +304,23 @@ export default function ExportImport({
       <body>
         <div class="header">
           <div class="title-area">
-            <h1>Rapport Clinique de Tension</h1>
-            <p>Carnet d'auto-mesures de la tension artérielle</p>
+            <h1>Relevé des Mesures de Tension</h1>
           </div>
           <div class="meta-area">
-            <h2>Suivi Personnel</h2>
-            <div>Période : Du <strong>${startDisplay}</strong> au <strong>${endDisplay}</strong></div>
-            <div style="margin-top: 2px;">Imprimé le : ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}</div>
+            <div>Période : <strong>${startDisplay}</strong> - <strong>${endDisplay}</strong></div>
+            <div style="margin-top: 2px;">Édité le : ${new Date().toLocaleDateString('fr-FR')}</div>
           </div>
         </div>
         
-        <div class="summary-row">
-          {/* Averages Bras Gauche */}
-          <div class="summary-card left-arm">
-            <div class="summary-label">Moyenne Bras Gauche</div>
-            ${avgSysG ? `
-              <div class="summary-stats-box">
-                <span class="summary-value" style="color: var(--primary);">${avgSysG}/${avgDiaG} <span style="font-size: 11px; font-weight: normal;">mmHg</span></span>
-                <span style="font-size: 12px; color: var(--text-secondary); font-weight: 600;">💓 ${avgPulseG} bpm</span>
-              </div>
-              <span class="status-badge ${getBPStatus(avgSysG, avgDiaG)?.class || 'status-normal'}">
-                ${getBPStatus(avgSysG, avgDiaG)?.label || 'Tension Normale'}
-              </span>
-            ` : `
-              <div style="font-style: italic; color: #64748b; font-size: 12px; padding: 5px 0;">Aucune mesure bras gauche</div>
-            `}
-          </div>
-
-          {/* Averages Bras Droit */}
-          <div class="summary-card right-arm">
-            <div class="summary-label">Moyenne Bras Droit</div>
-            ${avgSysD ? `
-              <div class="summary-stats-box">
-                <span class="summary-value" style="color: var(--accent);">${avgSysD}/${avgDiaD} <span style="font-size: 11px; font-weight: normal;">mmHg</span></span>
-                <span style="font-size: 12px; color: var(--text-secondary); font-weight: 600;">💓 ${avgPulseD} bpm</span>
-              </div>
-              <span class="status-badge ${getBPStatus(avgSysD, avgDiaD)?.class || 'status-normal'}">
-                ${getBPStatus(avgSysD, avgDiaD)?.label || 'Tension Normale'}
-              </span>
-            ` : `
-              <div style="font-style: italic; color: #64748b; font-size: 12px; padding: 5px 0;">Aucune mesure bras droit</div>
-            `}
-          </div>
-        </div>
-        
-        <h3 style="font-size: 14px; font-weight: 700; margin: 20px 0 8px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 4px;">
-          Historique des mesures individuelles (${totalReadings})
-        </h3>
         <table>
           <thead>
             <tr>
-              <th style="width: 22%">Date</th>
-              <th style="width: 18%">Créneau</th>
-              <th style="width: 30%">Mesure Tensionnelle</th>
-              <th style="width: 15%">Pouls (Cardiaque)</th>
-              <th style="width: 15%">Côté</th>
+              <th style="width: 25%">Date & Heure</th>
+              <th style="width: 22%">Bras Gauche</th>
+              <th style="width: 22%">Bras Droit</th>
+              <th style="width: 10%">Moy. Sys</th>
+              <th style="width: 10%">Moy. Dia</th>
+              <th style="width: 11%">Moy. Pouls</th>
             </tr>
           </thead>
           <tbody>
@@ -433,9 +329,7 @@ export default function ExportImport({
         </table>
         
         <div class="disclaimer">
-          <strong>⚠️ Informations importantes :</strong> Ce compte-rendu contient des mesures de tension artérielle relevées à domicile. 
-          Il est destiné à être présenté à un professionnel de santé (médecin généraliste ou cardiologue) lors de vos consultations. 
-          L'auto-mesure permet de donner un aperçu plus fidèle de votre tension au quotidien qu'une mesure unique en cabinet.
+          <strong>Document d'auto-mesure tensionnelle</strong> à présenter à votre professionnel de santé.
         </div>
       </body>
       </html>
