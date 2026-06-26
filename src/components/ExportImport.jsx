@@ -147,17 +147,10 @@ export default function ExportImport({
     const startDisplay = limitStartDate ? formatDateFR(limitStartDate) : formatDateFR(sortedDates[0]);
     const endDisplay = formatDateFR(limitEndDate);
 
-    // Création de l'iframe de façon invisible
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    // Sur mobile, l'impression d'un iframe caché échoue souvent (imprime la page parente).
+    // On va plutôt injecter une div visible uniquement à l'impression via @media print.
+    const originalTitle = document.title;
+    document.title = `Rapport de Suivi Tensionnel - ${startDisplay} au ${endDisplay}`;
 
     // Génération des lignes de tableau
     let tableRowsHtml = '';
@@ -205,144 +198,144 @@ export default function ExportImport({
       }
     });
 
-    // Écriture du contenu dans l'iframe
-    doc.open();
-    doc.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>Rapport de Suivi Tensionnel - ${startDisplay} au ${endDisplay}</title>
-        <style>
-          @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+    // Création du conteneur d'impression
+    const printContainer = document.createElement('div');
+    printContainer.id = 'tension-print-container';
+    
+    printContainer.innerHTML = `
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+        
+        @media screen {
+          #tension-print-container { display: none !important; }
+        }
+        
+        @media print {
+          /* Masquer l'application principale */
+          body > :not(#tension-print-container) { display: none !important; }
           
-          :root {
-            --primary: #3b82f6;
-            --accent: #06b6d4;
-            --text-primary: #0f172a;
-            --text-secondary: #475569;
-            --border-color: #cbd5e1;
-            --bg-light: #f8fafc;
-          }
-          
-          * { box-sizing: border-box; }
+          @page { margin: 1.5cm; }
           
           body {
-            font-family: 'Outfit', sans-serif;
-            color: var(--text-primary);
-            margin: 0;
-            padding: 20px;
-            font-size: 12px;
-            line-height: 1.4;
-            background-color: white;
+            background-color: white !important;
           }
           
-          .header {
+          #tension-print-container {
+            --primary: #3b82f6;
+            --accent: #06b6d4;
+            display: block !important;
+            font-family: 'Outfit', sans-serif;
+            color: #0f172a;
+            font-size: 12px;
+            line-height: 1.4;
+            padding: 0;
+            margin: 0;
+            width: 100%;
+          }
+          
+          #tension-print-container .header {
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
-            border-bottom: 2px solid var(--primary);
+            border-bottom: 2px solid #3b82f6;
             padding-bottom: 12px;
             margin-bottom: 25px;
           }
           
-          .title-area h1 {
+          #tension-print-container .title-area h1 {
             margin: 0;
             font-size: 22px;
             font-weight: 800;
-            color: var(--primary);
+            color: #3b82f6;
             letter-spacing: -0.02em;
           }
           
-          .meta-area {
+          #tension-print-container .meta-area {
             text-align: right;
             font-size: 11px;
-            color: var(--text-secondary);
+            color: #475569;
           }
           
-          table {
+          #tension-print-container table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 10px;
           }
           
-          th, td {
+          #tension-print-container th, #tension-print-container td {
             padding: 10px 12px;
             text-align: left;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid #cbd5e1;
           }
           
-          th {
+          #tension-print-container th {
             background-color: #f1f5f9;
-            color: var(--text-secondary);
+            color: #475569;
             font-weight: 700;
             font-size: 10px;
             text-transform: uppercase;
             letter-spacing: 0.05em;
           }
           
-          tr:nth-child(even) td {
+          #tension-print-container tr:nth-child(even) td {
             background-color: rgba(248, 250, 252, 0.5);
           }
           
-          .disclaimer {
+          #tension-print-container .disclaimer {
             margin-top: 35px;
             padding-top: 15px;
-            border-top: 1px solid var(--border-color);
+            border-top: 1px solid #cbd5e1;
             font-size: 10px;
-            color: var(--text-secondary);
+            color: #475569;
             text-align: center;
             line-height: 1.5;
           }
-          
-          @media print {
-            body { padding: 0; }
-            @page { margin: 1.5cm; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div class="title-area">
-            <h1>Relevé des Mesures de Tension</h1>
-          </div>
-          <div class="meta-area">
-            <div>Période : <strong>${startDisplay}</strong> - <strong>${endDisplay}</strong></div>
-            <div style="margin-top: 2px;">Édité le : ${new Date().toLocaleDateString('fr-FR')}</div>
-          </div>
+        }
+      </style>
+      
+      <div class="header">
+        <div class="title-area">
+          <h1>Relevé des Mesures de Tension</h1>
         </div>
-        
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 25%">Date & Heure</th>
-              <th style="width: 22%">Bras Gauche</th>
-              <th style="width: 22%">Bras Droit</th>
-              <th style="width: 10%">Moy. Sys</th>
-              <th style="width: 10%">Moy. Dia</th>
-              <th style="width: 11%">Moy. Pouls</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${tableRowsHtml}
-          </tbody>
-        </table>
-        
-        <div class="disclaimer">
-          <strong>Document d'auto-mesure tensionnelle</strong> à présenter à votre professionnel de santé.
+        <div class="meta-area">
+          <div>Période : <strong>${startDisplay}</strong> - <strong>${endDisplay}</strong></div>
+          <div style="margin-top: 2px;">Édité le : ${new Date().toLocaleDateString('fr-FR')}</div>
         </div>
-      </body>
-      </html>
-    `);
-    doc.close();
+      </div>
+      
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 25%">Date & Heure</th>
+            <th style="width: 22%">Bras Gauche</th>
+            <th style="width: 22%">Bras Droit</th>
+            <th style="width: 10%">Moy. Sys</th>
+            <th style="width: 10%">Moy. Dia</th>
+            <th style="width: 11%">Moy. Pouls</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRowsHtml}
+        </tbody>
+      </table>
+      
+      <div class="disclaimer">
+        <strong>Document d'auto-mesure tensionnelle</strong> à présenter à votre professionnel de santé.
+      </div>
+    `;
 
-    // Lancer le focus et l'impression sur l'iframe
-    iframe.contentWindow.focus();
+    document.body.appendChild(printContainer);
+
+    // Lancer l'impression sur la fenêtre principale
     setTimeout(() => {
-      iframe.contentWindow.print();
-      // Retirer l'iframe
+      window.print();
+      
+      // Nettoyer après impression
       setTimeout(() => {
-        document.body.removeChild(iframe);
+        document.title = originalTitle;
+        if (document.body.contains(printContainer)) {
+          document.body.removeChild(printContainer);
+        }
         showToast('Rapport PDF généré !', 'success');
       }, 1000);
     }, 500);
