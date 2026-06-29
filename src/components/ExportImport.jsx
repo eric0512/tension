@@ -183,13 +183,18 @@ export default function ExportImport({
         }
       });
 
-      // Ligne de moyenne de la journée dans 3 cellules (Sys, Dia, Pouls)
+      // Ligne de moyenne de la journée
       if (dayHasData && day.avg && day.avg.global) {
+        const avgG = day.avg.gauche ? `<strong style="font-size: 14px; color: var(--primary);">${day.avg.gauche.sys}/${day.avg.gauche.dia}</strong> <span style="font-size:10px;color:#64748b">(${day.avg.gauche.pulse} bpm)</span>` : '<span style="color:#cbd5e1">-</span>';
+        const avgD = day.avg.droit ? `<strong style="font-size: 14px; color: var(--primary);">${day.avg.droit.sys}/${day.avg.droit.dia}</strong> <span style="font-size:10px;color:#64748b">(${day.avg.droit.pulse} bpm)</span>` : '<span style="color:#cbd5e1">-</span>';
+
         tableRowsHtml += `
           <tr style="background-color: #f8fafc; border-bottom: 2px solid #94a3b8;">
-            <td colspan="3" style="text-align: right; padding-right: 15px; font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.05em;">
+            <td style="text-align: right; padding-right: 15px; font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.05em;">
               <strong>Moyenne du ${dateDisplay} :</strong>
             </td>
+            <td>${avgG}</td>
+            <td>${avgD}</td>
             <td style="font-weight: 800; color: var(--primary); font-size: 14px;">${day.avg.global.sys} <span style="font-size:9px; font-weight:normal; color:#64748b">mmHg</span></td>
             <td style="font-weight: 800; color: var(--primary); font-size: 14px;">${day.avg.global.dia} <span style="font-size:9px; font-weight:normal; color:#64748b">mmHg</span></td>
             <td style="font-weight: 800; font-size: 14px;">${day.avg.global.pulse} <span style="font-size:9px; font-weight:normal; color:#64748b">bpm</span></td>
